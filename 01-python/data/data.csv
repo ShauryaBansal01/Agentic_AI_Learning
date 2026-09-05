@@ -1,0 +1,501 @@
+OrderID,OrderDate,CustomerID,Product,Category,Quantity,UnitPrice,DiscountPercent,Revenue,Region,PaymentMethod,OrderStatus
+ORD00001,2026-06-13,CUST1228,Smartphone,Electronics,1,583,5,553.85,South,Wallet,Delivered
+ORD00002,2026-06-23,CUST1032,Camera,Electronics,1,1229,15,1044.65,North,Credit Card,Shipped
+ORD00003,2026-03-01,CUST1203,Camera,Electronics,5,74,20,296.0,West,Debit Card,Returned
+ORD00004,2026-05-31,CUST1348,Mouse,Accessories,1,346,15,294.1,East,Debit Card,Shipped
+ORD00005,2026-03-28,CUST1367,Smartphone,Electronics,1,798,0,798.0,East,Cash on Delivery,Cancelled
+ORD00006,2026-01-12,CUST1080,Smartwatch,Wearables,5,275,15,1168.75,East,Wallet,Cancelled
+ORD00007,2026-05-28,CUST1791,Keyboard,Accessories,1,113,5,107.35,East,Credit Card,Shipped
+ORD00008,2026-01-26,CUST1166,Tablet,Electronics,3,948,10,2559.6,East,UPI,Shipped
+ORD00009,2026-06-21,CUST1546,Mouse,Accessories,1,1267,5,1203.65,South,Debit Card,Returned
+ORD00010,2026-04-08,CUST1863,Mouse,Accessories,5,469,10,2110.5,North,Debit Card,Delivered
+ORD00011,2026-03-22,CUST1935,Tablet,Electronics,3,155,5,441.75,East,Debit Card,Returned
+ORD00012,2026-04-12,CUST1252,Smartwatch,Wearables,2,562,5,1067.8,East,Wallet,Returned
+ORD00013,2026-05-30,CUST1521,Tablet,Electronics,3,469,5,1336.65,West,Credit Card,Delivered
+ORD00014,2026-01-29,CUST1610,Headphones,Accessories,2,1413,15,2402.1,North,Net Banking,Returned
+ORD00015,2026-06-02,CUST1881,Smartwatch,Wearables,5,534,20,2136.0,North,Wallet,Delivered
+ORD00016,2026-06-24,CUST1114,Camera,Electronics,3,1332,10,3596.4,East,Net Banking,Shipped
+ORD00017,2026-04-27,CUST1519,Laptop,Electronics,3,1045,5,2978.25,North,Wallet,Cancelled
+ORD00018,2026-06-13,CUST1382,Camera,Electronics,5,427,5,2028.25,South,Cash on Delivery,Delivered
+ORD00019,2026-06-03,CUST1951,Monitor,Electronics,4,59,0,236.0,East,UPI,Shipped
+ORD00020,2026-01-15,CUST1749,Keyboard,Accessories,5,181,0,905.0,West,Credit Card,Shipped
+ORD00021,2026-02-02,CUST1540,Smartwatch,Wearables,5,358,10,1611.0,West,Debit Card,Shipped
+ORD00022,2026-03-21,CUST1462,Tablet,Electronics,3,917,20,2200.8,North,Debit Card,Shipped
+ORD00023,2026-01-17,CUST1235,Monitor,Electronics,1,1224,20,979.2,South,Credit Card,Delivered
+ORD00024,2026-06-11,CUST1880,Laptop,Electronics,2,158,0,316.0,East,Credit Card,Shipped
+ORD00025,2026-03-13,CUST1740,Smartwatch,Wearables,2,1124,5,2135.6,West,Debit Card,Returned
+ORD00026,2026-04-15,CUST1362,Keyboard,Accessories,1,218,15,185.3,West,Net Banking,Returned
+ORD00027,2026-01-14,CUST1819,Smartphone,Electronics,1,844,10,759.6,North,Debit Card,Shipped
+ORD00028,2026-02-18,CUST1187,Camera,Electronics,4,307,15,1043.8,East,Net Banking,Shipped
+ORD00029,2026-01-20,CUST1667,Smartwatch,Wearables,5,220,0,1100.0,North,Credit Card,Shipped
+ORD00030,2026-02-12,CUST1885,Tablet,Electronics,4,1005,5,3819.0,West,Credit Card,Shipped
+ORD00031,2026-04-08,CUST1292,Laptop,Electronics,4,563,15,1914.2,West,Wallet,Returned
+ORD00032,2026-02-09,CUST1593,Keyboard,Accessories,3,465,0,1395.0,North,Wallet,Cancelled
+ORD00033,2026-01-15,CUST1941,Laptop,Electronics,5,996,20,3984.0,South,Credit Card,Delivered
+ORD00034,2026-02-17,CUST1413,Smartphone,Electronics,5,159,5,755.25,North,Cash on Delivery,Shipped
+ORD00035,2026-05-29,CUST1429,Printer,Office,1,1288,0,1288.0,East,UPI,Shipped
+ORD00036,2026-06-21,CUST1134,Monitor,Electronics,2,563,15,957.1,East,Net Banking,Cancelled
+ORD00037,2026-01-19,CUST1102,Laptop,Electronics,4,1292,20,4134.4,North,Cash on Delivery,Shipped
+ORD00038,2026-05-10,CUST1900,Mouse,Accessories,2,734,0,1468.0,South,UPI,Cancelled
+ORD00039,2026-02-10,CUST1626,Smartwatch,Wearables,5,1460,10,6570.0,North,Wallet,Cancelled
+ORD00040,2026-06-19,CUST1911,Smartphone,Electronics,2,561,0,1122.0,North,Wallet,Shipped
+ORD00041,2026-03-11,CUST1208,Mouse,Accessories,5,451,10,2029.5,East,Cash on Delivery,Returned
+ORD00042,2026-03-06,CUST1849,Laptop,Electronics,1,1319,15,1121.15,East,Credit Card,Delivered
+ORD00043,2026-03-27,CUST1564,Headphones,Accessories,3,350,15,892.5,West,Cash on Delivery,Delivered
+ORD00044,2026-01-29,CUST1854,Smartphone,Electronics,2,1137,0,2274.0,East,Cash on Delivery,Shipped
+ORD00045,2026-04-21,CUST1920,Headphones,Accessories,1,651,10,585.9,North,UPI,Shipped
+ORD00046,2026-06-24,CUST1905,Keyboard,Accessories,1,744,20,595.2,West,Cash on Delivery,Shipped
+ORD00047,2026-03-02,CUST1183,Headphones,Accessories,2,864,0,1728.0,East,Net Banking,Shipped
+ORD00048,2026-03-10,CUST1879,Headphones,Accessories,1,803,0,803.0,West,Debit Card,Shipped
+ORD00049,2026-04-28,CUST1024,Monitor,Electronics,3,486,5,1385.1,South,Net Banking,Cancelled
+ORD00050,2026-03-13,CUST1409,Smartphone,Electronics,3,739,20,1773.6,East,Credit Card,Delivered
+ORD00051,2026-03-08,CUST1111,Headphones,Accessories,5,563,0,2815.0,West,UPI,Cancelled
+ORD00052,2026-04-22,CUST1921,Printer,Office,5,256,15,1088.0,South,UPI,Delivered
+ORD00053,2026-04-22,CUST1372,Laptop,Electronics,5,1122,5,5329.5,West,Credit Card,Cancelled
+ORD00054,2026-06-09,CUST1519,Monitor,Electronics,1,1494,10,1344.6,East,Wallet,Returned
+ORD00055,2026-03-25,CUST1196,Tablet,Electronics,3,1155,5,3291.75,West,Wallet,Returned
+ORD00056,2026-06-23,CUST1415,Headphones,Accessories,5,1185,10,5332.5,North,UPI,Cancelled
+ORD00057,2026-02-23,CUST1476,Tablet,Electronics,5,1262,10,5679.0,West,Net Banking,Shipped
+ORD00058,2026-05-11,CUST1290,Smartwatch,Wearables,2,1369,0,2738.0,East,Credit Card,Shipped
+ORD00059,2026-06-22,CUST1025,Mouse,Accessories,2,427,5,811.3,North,Debit Card,Returned
+ORD00060,2026-06-06,CUST1199,Smartphone,Electronics,4,868,20,2777.6,West,Net Banking,Returned
+ORD00061,2026-03-04,CUST1224,Headphones,Accessories,1,238,15,202.3,South,Wallet,Returned
+ORD00062,2026-01-13,CUST1136,Camera,Electronics,2,268,15,455.6,West,Wallet,Cancelled
+ORD00063,2026-04-24,CUST1456,Printer,Office,5,893,20,3572.0,South,Wallet,Returned
+ORD00064,2026-04-26,CUST1784,Mouse,Accessories,2,1325,10,2385.0,West,Wallet,Shipped
+ORD00065,2026-03-12,CUST1240,Smartwatch,Wearables,1,1481,10,1332.9,East,UPI,Cancelled
+ORD00066,2026-05-19,CUST1392,Smartphone,Electronics,2,328,5,623.2,South,Wallet,Shipped
+ORD00067,2026-01-17,CUST1477,Tablet,Electronics,4,697,20,2230.4,West,Credit Card,Shipped
+ORD00068,2026-04-18,CUST1877,Tablet,Electronics,5,1444,0,7220.0,West,Net Banking,Delivered
+ORD00069,2026-04-01,CUST1765,Mouse,Accessories,4,878,20,2809.6,South,Net Banking,Shipped
+ORD00070,2026-03-11,CUST1344,Tablet,Electronics,4,79,15,268.6,West,Wallet,Shipped
+ORD00071,2026-04-30,CUST1928,Headphones,Accessories,5,1113,0,5565.0,West,Cash on Delivery,Delivered
+ORD00072,2026-01-22,CUST1051,Tablet,Electronics,2,965,5,1833.5,East,Net Banking,Cancelled
+ORD00073,2026-02-24,CUST1284,Smartwatch,Wearables,3,711,15,1813.05,West,UPI,Delivered
+ORD00074,2026-05-01,CUST1229,Laptop,Electronics,5,126,10,567.0,North,Wallet,Delivered
+ORD00075,2026-01-08,CUST1156,Keyboard,Accessories,2,61,20,97.6,South,Debit Card,Returned
+ORD00076,2026-06-21,CUST1716,Smartphone,Electronics,5,466,15,1980.5,East,UPI,Shipped
+ORD00077,2026-06-05,CUST1110,Printer,Office,1,355,10,319.5,North,UPI,Returned
+ORD00078,2026-04-12,CUST1104,Keyboard,Accessories,1,1232,5,1170.4,East,Wallet,Delivered
+ORD00079,2026-05-25,CUST1677,Laptop,Electronics,3,1111,15,2833.05,East,Credit Card,Cancelled
+ORD00080,2026-01-04,CUST1983,Tablet,Electronics,4,236,15,802.4,East,Wallet,Returned
+ORD00081,2026-02-09,CUST1630,Tablet,Electronics,2,1088,10,1958.4,West,Net Banking,Returned
+ORD00082,2026-06-01,CUST1285,Mouse,Accessories,3,522,0,1566.0,West,Debit Card,Returned
+ORD00083,2026-05-26,CUST1506,Printer,Office,4,708,0,2832.0,East,Debit Card,Returned
+ORD00084,2026-02-24,CUST1901,Monitor,Electronics,3,717,10,1935.9,East,Cash on Delivery,Delivered
+ORD00085,2026-05-13,CUST1500,Keyboard,Accessories,1,514,15,436.9,South,Wallet,Returned
+ORD00086,2026-06-15,CUST1301,Smartwatch,Wearables,4,55,0,220.0,South,Net Banking,Shipped
+ORD00087,2026-03-20,CUST1543,Printer,Office,3,989,20,2373.6,East,Net Banking,Cancelled
+ORD00088,2026-04-01,CUST1236,Smartwatch,Wearables,3,647,10,1746.9,North,Wallet,Shipped
+ORD00089,2026-03-22,CUST1196,Smartphone,Electronics,5,1433,5,6806.75,South,Wallet,Returned
+ORD00090,2026-03-12,CUST1102,Printer,Office,5,1242,10,5589.0,South,UPI,Shipped
+ORD00091,2026-04-03,CUST1129,Headphones,Accessories,3,48,20,115.2,East,Credit Card,Delivered
+ORD00092,2026-05-22,CUST1105,Mouse,Accessories,2,1326,15,2254.2,North,Cash on Delivery,Cancelled
+ORD00093,2026-05-01,CUST1988,Smartwatch,Wearables,4,717,5,2724.6,North,UPI,Returned
+ORD00094,2026-01-30,CUST1590,Smartphone,Electronics,4,1027,0,4108.0,North,Debit Card,Shipped
+ORD00095,2026-05-25,CUST1571,Mouse,Accessories,1,528,0,528.0,West,Cash on Delivery,Shipped
+ORD00096,2026-05-14,CUST1880,Tablet,Electronics,4,926,10,3333.6,West,UPI,Delivered
+ORD00097,2026-06-06,CUST1270,Smartphone,Electronics,2,1301,5,2471.9,North,Debit Card,Shipped
+ORD00098,2026-02-14,CUST1418,Camera,Electronics,1,340,0,340.0,West,Wallet,Returned
+ORD00099,2026-03-16,CUST1719,Laptop,Electronics,2,610,10,1098.0,West,Credit Card,Shipped
+ORD00100,2026-03-09,CUST1557,Printer,Office,2,890,0,1780.0,South,Wallet,Shipped
+ORD00101,2026-03-10,CUST1811,Headphones,Accessories,1,142,5,134.9,East,Cash on Delivery,Cancelled
+ORD00102,2026-04-23,CUST1716,Smartphone,Electronics,4,1430,10,5148.0,West,UPI,Returned
+ORD00103,2026-04-23,CUST1752,Smartphone,Electronics,5,101,15,429.25,East,Cash on Delivery,Cancelled
+ORD00104,2026-01-07,CUST1601,Smartphone,Electronics,2,1400,20,2240.0,North,Wallet,Cancelled
+ORD00105,2026-05-28,CUST1667,Laptop,Electronics,2,983,20,1572.8,West,UPI,Shipped
+ORD00106,2026-05-30,CUST1356,Tablet,Electronics,4,206,15,700.4,West,UPI,Cancelled
+ORD00107,2026-06-21,CUST1710,Smartphone,Electronics,2,695,15,1181.5,West,UPI,Returned
+ORD00108,2026-05-21,CUST1258,Laptop,Electronics,4,200,10,720.0,East,Credit Card,Returned
+ORD00109,2026-05-12,CUST1055,Laptop,Electronics,5,966,15,4105.5,South,Cash on Delivery,Cancelled
+ORD00110,2026-06-09,CUST1273,Smartwatch,Wearables,4,125,5,475.0,South,UPI,Returned
+ORD00111,2026-06-28,CUST1818,Smartwatch,Wearables,1,79,20,63.2,South,Wallet,Shipped
+ORD00112,2026-03-21,CUST1095,Camera,Electronics,1,1151,15,978.35,South,Credit Card,Returned
+ORD00113,2026-01-31,CUST1521,Headphones,Accessories,4,1487,10,5353.2,East,Net Banking,Returned
+ORD00114,2026-05-01,CUST1392,Keyboard,Accessories,4,1148,5,4362.4,South,Cash on Delivery,Shipped
+ORD00115,2026-01-18,CUST1273,Mouse,Accessories,4,716,20,2291.2,North,UPI,Cancelled
+ORD00116,2026-05-31,CUST1551,Printer,Office,4,324,15,1101.6,West,UPI,Cancelled
+ORD00117,2026-05-22,CUST1890,Camera,Electronics,4,952,10,3427.2,South,Wallet,Shipped
+ORD00118,2026-05-27,CUST1325,Tablet,Electronics,2,861,0,1722.0,West,Wallet,Returned
+ORD00119,2026-04-09,CUST1514,Headphones,Accessories,4,95,5,361.0,East,Credit Card,Returned
+ORD00120,2026-01-26,CUST1419,Camera,Electronics,4,51,5,193.8,South,Credit Card,Returned
+ORD00121,2026-03-09,CUST1665,Monitor,Electronics,5,1438,15,6111.5,North,UPI,Returned
+ORD00122,2026-03-23,CUST1070,Smartwatch,Wearables,5,93,20,372.0,South,Wallet,Cancelled
+ORD00123,2026-02-28,CUST1454,Smartphone,Electronics,4,221,0,884.0,South,Wallet,Cancelled
+ORD00124,2026-01-08,CUST1367,Laptop,Electronics,3,134,10,361.8,East,Net Banking,Shipped
+ORD00125,2026-03-04,CUST1174,Camera,Electronics,4,1179,5,4480.2,South,Credit Card,Returned
+ORD00126,2026-06-08,CUST1237,Keyboard,Accessories,4,1214,5,4613.2,West,Wallet,Cancelled
+ORD00127,2026-04-28,CUST1693,Mouse,Accessories,1,972,10,874.8,South,Credit Card,Returned
+ORD00128,2026-03-30,CUST1706,Printer,Office,3,1328,15,3386.4,East,Net Banking,Cancelled
+ORD00129,2026-02-20,CUST1390,Tablet,Electronics,4,238,5,904.4,East,Cash on Delivery,Cancelled
+ORD00130,2026-06-29,CUST1281,Mouse,Accessories,1,1368,15,1162.8,North,Cash on Delivery,Delivered
+ORD00131,2026-06-05,CUST1821,Smartwatch,Wearables,3,491,20,1178.4,East,Debit Card,Shipped
+ORD00132,2026-06-08,CUST1925,Mouse,Accessories,2,1306,0,2612.0,North,UPI,Returned
+ORD00133,2026-01-09,CUST1931,Printer,Office,3,289,0,867.0,East,UPI,Returned
+ORD00134,2026-02-14,CUST1543,Keyboard,Accessories,2,1124,10,2023.2,East,Debit Card,Cancelled
+ORD00135,2026-05-04,CUST1986,Mouse,Accessories,3,255,15,650.25,North,Debit Card,Shipped
+ORD00136,2026-06-23,CUST1809,Tablet,Electronics,5,769,0,3845.0,West,Credit Card,Cancelled
+ORD00137,2026-05-18,CUST1598,Smartphone,Electronics,4,774,10,2786.4,West,Wallet,Cancelled
+ORD00138,2026-01-28,CUST1905,Keyboard,Accessories,4,71,20,227.2,East,Cash on Delivery,Shipped
+ORD00139,2026-06-15,CUST1664,Smartphone,Electronics,4,1455,10,5238.0,West,Credit Card,Shipped
+ORD00140,2026-01-12,CUST1099,Laptop,Electronics,3,1028,0,3084.0,South,Cash on Delivery,Shipped
+ORD00141,2026-04-10,CUST1429,Smartwatch,Wearables,3,1393,20,3343.2,South,Net Banking,Delivered
+ORD00142,2026-05-06,CUST1706,Printer,Office,4,592,0,2368.0,East,Debit Card,Returned
+ORD00143,2026-04-24,CUST1557,Keyboard,Accessories,3,223,10,602.1,East,Credit Card,Returned
+ORD00144,2026-03-12,CUST1678,Keyboard,Accessories,1,951,0,951.0,South,Wallet,Delivered
+ORD00145,2026-01-13,CUST1210,Monitor,Electronics,2,277,20,443.2,North,Cash on Delivery,Shipped
+ORD00146,2026-05-31,CUST1807,Keyboard,Accessories,2,692,5,1314.8,North,UPI,Shipped
+ORD00147,2026-02-03,CUST1676,Camera,Electronics,3,377,0,1131.0,North,Debit Card,Delivered
+ORD00148,2026-04-02,CUST1178,Keyboard,Accessories,5,683,0,3415.0,East,Credit Card,Shipped
+ORD00149,2026-04-18,CUST1459,Camera,Electronics,1,150,15,127.5,East,Cash on Delivery,Delivered
+ORD00150,2026-04-26,CUST1744,Camera,Electronics,2,1279,0,2558.0,East,Net Banking,Delivered
+ORD00151,2026-01-16,CUST1502,Smartwatch,Wearables,4,893,0,3572.0,West,Credit Card,Delivered
+ORD00152,2026-03-24,CUST1281,Printer,Office,2,154,5,292.6,East,Net Banking,Cancelled
+ORD00153,2026-04-27,CUST1812,Camera,Electronics,5,901,0,4505.0,North,Wallet,Shipped
+ORD00154,2026-04-21,CUST1847,Smartwatch,Wearables,2,867,10,1560.6,West,Net Banking,Returned
+ORD00155,2026-01-25,CUST1383,Monitor,Electronics,4,660,10,2376.0,South,Wallet,Returned
+ORD00156,2026-01-18,CUST1098,Smartphone,Electronics,1,210,15,178.5,East,Debit Card,Delivered
+ORD00157,2026-05-31,CUST1420,Camera,Electronics,5,695,0,3475.0,East,Wallet,Returned
+ORD00158,2026-01-14,CUST1106,Mouse,Accessories,5,659,10,2965.5,South,Debit Card,Returned
+ORD00159,2026-02-27,CUST1117,Smartphone,Electronics,3,1159,10,3129.3,East,Cash on Delivery,Shipped
+ORD00160,2026-04-20,CUST1026,Camera,Electronics,5,1276,20,5104.0,East,Credit Card,Shipped
+ORD00161,2026-03-11,CUST1185,Mouse,Accessories,3,738,0,2214.0,South,Cash on Delivery,Returned
+ORD00162,2026-01-18,CUST1220,Headphones,Accessories,1,207,20,165.6,West,Net Banking,Returned
+ORD00163,2026-03-29,CUST1795,Headphones,Accessories,3,658,10,1776.6,North,Credit Card,Shipped
+ORD00164,2026-02-10,CUST1278,Printer,Office,1,1400,0,1400.0,West,Wallet,Returned
+ORD00165,2026-05-05,CUST1220,Printer,Office,4,868,10,3124.8,North,UPI,Returned
+ORD00166,2026-01-29,CUST1683,Mouse,Accessories,5,1016,20,4064.0,East,Credit Card,Shipped
+ORD00167,2026-04-12,CUST1308,Printer,Office,1,35,5,33.25,South,Debit Card,Cancelled
+ORD00168,2026-03-16,CUST1764,Monitor,Electronics,1,35,15,29.75,West,Debit Card,Shipped
+ORD00169,2026-04-08,CUST1853,Camera,Electronics,2,1044,20,1670.4,East,Credit Card,Returned
+ORD00170,2026-01-11,CUST1882,Tablet,Electronics,1,961,0,961.0,East,Cash on Delivery,Returned
+ORD00171,2026-05-27,CUST1414,Tablet,Electronics,4,612,0,2448.0,North,UPI,Shipped
+ORD00172,2026-06-08,CUST1864,Smartwatch,Wearables,3,200,15,510.0,North,Debit Card,Returned
+ORD00173,2026-05-31,CUST1891,Tablet,Electronics,5,181,15,769.25,East,Wallet,Cancelled
+ORD00174,2026-02-26,CUST1648,Monitor,Electronics,2,176,20,281.6,North,Cash on Delivery,Shipped
+ORD00175,2026-03-31,CUST1149,Monitor,Electronics,2,503,0,1006.0,East,Debit Card,Shipped
+ORD00176,2026-06-04,CUST1475,Headphones,Accessories,1,382,15,324.7,West,Wallet,Cancelled
+ORD00177,2026-06-10,CUST1480,Monitor,Electronics,2,920,0,1840.0,West,Wallet,Cancelled
+ORD00178,2026-03-12,CUST1075,Printer,Office,1,740,20,592.0,East,Net Banking,Returned
+ORD00179,2026-01-10,CUST1660,Laptop,Electronics,3,607,0,1821.0,North,Cash on Delivery,Returned
+ORD00180,2026-04-29,CUST1930,Printer,Office,5,104,15,442.0,South,UPI,Returned
+ORD00181,2026-05-09,CUST1830,Headphones,Accessories,1,942,0,942.0,East,Wallet,Delivered
+ORD00182,2026-05-10,CUST1449,Headphones,Accessories,1,527,15,447.95,South,UPI,Cancelled
+ORD00183,2026-03-14,CUST1053,Tablet,Electronics,4,712,20,2278.4,East,Credit Card,Cancelled
+ORD00184,2026-01-25,CUST1741,Camera,Electronics,4,601,10,2163.6,South,UPI,Delivered
+ORD00185,2026-05-30,CUST1132,Headphones,Accessories,3,655,15,1670.25,North,UPI,Returned
+ORD00186,2026-06-14,CUST1095,Monitor,Electronics,2,1392,20,2227.2,West,Cash on Delivery,Cancelled
+ORD00187,2026-01-05,CUST1349,Monitor,Electronics,3,389,5,1108.65,West,Debit Card,Shipped
+ORD00188,2026-02-05,CUST1519,Headphones,Accessories,1,625,0,625.0,North,Wallet,Cancelled
+ORD00189,2026-06-08,CUST1166,Headphones,Accessories,5,791,5,3757.25,South,Wallet,Shipped
+ORD00190,2026-04-23,CUST1992,Laptop,Electronics,4,766,5,2910.8,West,Cash on Delivery,Cancelled
+ORD00191,2026-04-25,CUST1988,Keyboard,Accessories,5,509,10,2290.5,West,Debit Card,Cancelled
+ORD00192,2026-06-23,CUST1796,Printer,Office,4,965,10,3474.0,West,Cash on Delivery,Returned
+ORD00193,2026-02-11,CUST1053,Keyboard,Accessories,5,303,10,1363.5,West,UPI,Delivered
+ORD00194,2026-05-13,CUST1279,Smartphone,Electronics,3,191,5,544.35,West,Cash on Delivery,Shipped
+ORD00195,2026-04-22,CUST1952,Smartphone,Electronics,2,943,10,1697.4,North,Net Banking,Delivered
+ORD00196,2026-04-12,CUST1083,Camera,Electronics,3,502,15,1280.1,East,Debit Card,Delivered
+ORD00197,2026-03-23,CUST1039,Smartphone,Electronics,3,319,5,909.15,East,Net Banking,Shipped
+ORD00198,2026-06-30,CUST1927,Smartwatch,Wearables,4,1280,0,5120.0,North,Credit Card,Cancelled
+ORD00199,2026-02-25,CUST1433,Headphones,Accessories,5,1266,20,5064.0,North,UPI,Shipped
+ORD00200,2026-03-19,CUST1654,Smartphone,Electronics,1,508,15,431.8,West,Credit Card,Delivered
+ORD00201,2026-05-08,CUST1588,Printer,Office,5,53,20,212.0,South,Wallet,Shipped
+ORD00202,2026-03-16,CUST1246,Tablet,Electronics,1,1279,10,1151.1,West,Debit Card,Delivered
+ORD00203,2026-05-15,CUST1519,Monitor,Electronics,1,1097,20,877.6,North,Net Banking,Returned
+ORD00204,2026-01-12,CUST1365,Tablet,Electronics,3,539,0,1617.0,North,UPI,Shipped
+ORD00205,2026-06-18,CUST1045,Smartphone,Electronics,5,700,5,3325.0,East,Cash on Delivery,Cancelled
+ORD00206,2026-06-14,CUST1646,Headphones,Accessories,4,1444,15,4909.6,South,Debit Card,Delivered
+ORD00207,2026-04-28,CUST1810,Laptop,Electronics,3,432,0,1296.0,South,Credit Card,Cancelled
+ORD00208,2026-03-21,CUST1259,Camera,Electronics,4,1132,15,3848.8,North,Wallet,Shipped
+ORD00209,2026-03-15,CUST1279,Monitor,Electronics,1,1362,10,1225.8,North,UPI,Returned
+ORD00210,2026-04-13,CUST1508,Smartwatch,Wearables,4,714,5,2713.2,West,UPI,Cancelled
+ORD00211,2026-01-22,CUST1842,Tablet,Electronics,1,901,20,720.8,South,Cash on Delivery,Cancelled
+ORD00212,2026-03-24,CUST1313,Smartphone,Electronics,1,691,10,621.9,West,Cash on Delivery,Returned
+ORD00213,2026-02-12,CUST1744,Smartwatch,Wearables,3,935,0,2805.0,East,Cash on Delivery,Returned
+ORD00214,2026-03-12,CUST1372,Laptop,Electronics,1,1394,15,1184.9,South,Credit Card,Shipped
+ORD00215,2026-06-05,CUST1241,Smartwatch,Wearables,1,278,0,278.0,East,UPI,Returned
+ORD00216,2026-05-26,CUST1971,Laptop,Electronics,5,334,15,1419.5,East,UPI,Returned
+ORD00217,2026-01-20,CUST1407,Printer,Office,2,1104,10,1987.2,East,Wallet,Cancelled
+ORD00218,2026-03-05,CUST1530,Smartphone,Electronics,1,401,15,340.85,West,Cash on Delivery,Delivered
+ORD00219,2026-03-09,CUST1292,Mouse,Accessories,4,459,20,1468.8,West,Debit Card,Delivered
+ORD00220,2026-02-04,CUST1089,Smartphone,Electronics,4,373,15,1268.2,East,Wallet,Cancelled
+ORD00221,2026-01-17,CUST1871,Camera,Electronics,5,614,10,2763.0,South,Wallet,Shipped
+ORD00222,2026-04-03,CUST1811,Camera,Electronics,2,268,5,509.2,South,Debit Card,Returned
+ORD00223,2026-01-07,CUST1478,Monitor,Electronics,5,1192,10,5364.0,South,Cash on Delivery,Delivered
+ORD00224,2026-01-17,CUST1538,Mouse,Accessories,4,1488,15,5059.2,West,Net Banking,Delivered
+ORD00225,2026-02-02,CUST1696,Monitor,Electronics,1,941,15,799.85,East,Debit Card,Shipped
+ORD00226,2026-02-03,CUST1530,Tablet,Electronics,5,133,0,665.0,South,UPI,Shipped
+ORD00227,2026-02-11,CUST1916,Monitor,Electronics,2,728,20,1164.8,East,Credit Card,Cancelled
+ORD00228,2026-02-20,CUST1629,Camera,Electronics,3,276,10,745.2,North,Cash on Delivery,Shipped
+ORD00229,2026-06-01,CUST1737,Printer,Office,2,370,20,592.0,East,Cash on Delivery,Delivered
+ORD00230,2026-01-08,CUST1271,Smartphone,Electronics,1,1333,20,1066.4,South,Cash on Delivery,Returned
+ORD00231,2026-06-08,CUST1296,Laptop,Electronics,4,1304,20,4172.8,East,Net Banking,Shipped
+ORD00232,2026-06-25,CUST1705,Tablet,Electronics,3,948,0,2844.0,North,Debit Card,Returned
+ORD00233,2026-04-17,CUST1621,Smartwatch,Wearables,4,437,10,1573.2,South,UPI,Cancelled
+ORD00234,2026-03-30,CUST1575,Tablet,Electronics,2,778,20,1244.8,North,UPI,Shipped
+ORD00235,2026-04-30,CUST1144,Smartphone,Electronics,3,940,5,2679.0,North,Credit Card,Cancelled
+ORD00236,2026-04-09,CUST1833,Printer,Office,4,528,5,2006.4,East,Cash on Delivery,Cancelled
+ORD00237,2026-02-18,CUST1510,Headphones,Accessories,4,1074,15,3651.6,East,Net Banking,Delivered
+ORD00238,2026-01-24,CUST1220,Tablet,Electronics,5,956,5,4541.0,East,Credit Card,Delivered
+ORD00239,2026-03-14,CUST1292,Smartwatch,Wearables,5,1359,15,5775.75,North,Credit Card,Returned
+ORD00240,2026-02-04,CUST1046,Mouse,Accessories,3,845,10,2281.5,West,Credit Card,Shipped
+ORD00241,2026-04-03,CUST1516,Camera,Electronics,3,170,15,433.5,West,Cash on Delivery,Cancelled
+ORD00242,2026-06-09,CUST1403,Printer,Office,1,283,0,283.0,East,UPI,Cancelled
+ORD00243,2026-02-06,CUST1512,Keyboard,Accessories,5,1062,15,4513.5,North,Credit Card,Delivered
+ORD00244,2026-02-05,CUST1152,Monitor,Electronics,4,1083,15,3682.2,South,UPI,Cancelled
+ORD00245,2026-02-11,CUST1344,Tablet,Electronics,5,632,20,2528.0,West,Wallet,Cancelled
+ORD00246,2026-05-02,CUST1426,Laptop,Electronics,3,698,0,2094.0,East,Wallet,Delivered
+ORD00247,2026-06-02,CUST1591,Smartwatch,Wearables,3,1362,20,3268.8,South,Wallet,Delivered
+ORD00248,2026-05-30,CUST1793,Smartwatch,Wearables,2,1093,20,1748.8,West,Debit Card,Shipped
+ORD00249,2026-01-09,CUST1451,Printer,Office,1,410,0,410.0,East,Net Banking,Shipped
+ORD00250,2026-04-16,CUST1942,Keyboard,Accessories,4,1047,20,3350.4,West,Wallet,Delivered
+ORD00251,2026-06-30,CUST1332,Headphones,Accessories,5,444,20,1776.0,West,Cash on Delivery,Returned
+ORD00252,2026-03-22,CUST1559,Headphones,Accessories,4,1111,10,3999.6,East,Wallet,Cancelled
+ORD00253,2026-06-06,CUST1571,Smartwatch,Wearables,2,524,10,943.2,East,Debit Card,Cancelled
+ORD00254,2026-03-15,CUST1357,Keyboard,Accessories,4,669,15,2274.6,East,UPI,Delivered
+ORD00255,2026-05-27,CUST1977,Camera,Electronics,4,828,10,2980.8,South,UPI,Delivered
+ORD00256,2026-03-15,CUST1765,Smartphone,Electronics,3,925,10,2497.5,West,Debit Card,Shipped
+ORD00257,2026-05-18,CUST1140,Mouse,Accessories,5,1445,10,6502.5,North,Cash on Delivery,Shipped
+ORD00258,2026-03-04,CUST1053,Laptop,Electronics,5,482,5,2289.5,North,Net Banking,Cancelled
+ORD00259,2026-05-01,CUST1951,Smartphone,Electronics,2,30,20,48.0,South,Net Banking,Returned
+ORD00260,2026-05-03,CUST1661,Keyboard,Accessories,3,677,10,1827.9,North,Credit Card,Shipped
+ORD00261,2026-05-17,CUST1956,Laptop,Electronics,2,875,5,1662.5,North,Net Banking,Returned
+ORD00262,2026-02-17,CUST1581,Mouse,Accessories,1,38,10,34.2,North,UPI,Cancelled
+ORD00263,2026-04-27,CUST1871,Camera,Electronics,5,1031,5,4897.25,West,UPI,Shipped
+ORD00264,2026-01-29,CUST1735,Monitor,Electronics,2,959,10,1726.2,South,Credit Card,Cancelled
+ORD00265,2026-03-17,CUST1876,Printer,Office,2,379,20,606.4,West,Net Banking,Cancelled
+ORD00266,2026-01-23,CUST1488,Tablet,Electronics,1,398,5,378.1,East,Debit Card,Delivered
+ORD00267,2026-03-08,CUST1976,Tablet,Electronics,2,934,10,1681.2,East,UPI,Delivered
+ORD00268,2026-03-08,CUST1476,Monitor,Electronics,2,147,0,294.0,East,Debit Card,Returned
+ORD00269,2026-06-25,CUST1654,Camera,Electronics,3,1433,0,4299.0,East,UPI,Shipped
+ORD00270,2026-02-26,CUST1765,Headphones,Accessories,4,333,15,1132.2,East,Net Banking,Returned
+ORD00271,2026-05-18,CUST1894,Keyboard,Accessories,2,1413,20,2260.8,North,Cash on Delivery,Returned
+ORD00272,2026-05-16,CUST1063,Monitor,Electronics,1,1175,0,1175.0,South,Cash on Delivery,Shipped
+ORD00273,2026-02-12,CUST1696,Monitor,Electronics,5,924,0,4620.0,South,Wallet,Returned
+ORD00274,2026-01-24,CUST1135,Camera,Electronics,4,133,15,452.2,West,Net Banking,Delivered
+ORD00275,2026-05-24,CUST1260,Smartwatch,Wearables,3,64,15,163.2,North,Wallet,Shipped
+ORD00276,2026-05-29,CUST1717,Smartphone,Electronics,1,887,10,798.3,North,Cash on Delivery,Delivered
+ORD00277,2026-01-18,CUST1184,Smartwatch,Wearables,1,607,15,515.95,South,Wallet,Returned
+ORD00278,2026-04-06,CUST1082,Tablet,Electronics,4,793,15,2696.2,South,Wallet,Cancelled
+ORD00279,2026-01-31,CUST1130,Headphones,Accessories,5,824,20,3296.0,South,Credit Card,Delivered
+ORD00280,2026-03-18,CUST1388,Smartwatch,Wearables,5,888,20,3552.0,South,Debit Card,Returned
+ORD00281,2026-03-30,CUST1032,Headphones,Accessories,3,406,0,1218.0,West,Cash on Delivery,Delivered
+ORD00282,2026-03-03,CUST1034,Keyboard,Accessories,1,226,20,180.8,West,Cash on Delivery,Delivered
+ORD00283,2026-03-04,CUST1552,Laptop,Electronics,4,918,5,3488.4,South,Credit Card,Shipped
+ORD00284,2026-05-09,CUST1591,Mouse,Accessories,2,1199,10,2158.2,East,Debit Card,Cancelled
+ORD00285,2026-02-06,CUST1281,Camera,Electronics,2,866,10,1558.8,North,Cash on Delivery,Shipped
+ORD00286,2026-06-10,CUST1995,Tablet,Electronics,5,1035,0,5175.0,East,Wallet,Returned
+ORD00287,2026-05-15,CUST1307,Monitor,Electronics,4,856,5,3252.8,West,Debit Card,Returned
+ORD00288,2026-03-03,CUST1825,Keyboard,Accessories,3,1469,5,4186.65,West,Credit Card,Returned
+ORD00289,2026-04-17,CUST1248,Camera,Electronics,5,294,15,1249.5,East,Debit Card,Cancelled
+ORD00290,2026-06-15,CUST1548,Smartphone,Electronics,4,779,0,3116.0,South,Credit Card,Cancelled
+ORD00291,2026-04-07,CUST1192,Printer,Office,5,100,0,500.0,South,Net Banking,Shipped
+ORD00292,2026-03-27,CUST1985,Mouse,Accessories,1,453,5,430.35,North,Wallet,Returned
+ORD00293,2026-03-04,CUST1565,Printer,Office,2,832,5,1580.8,East,UPI,Returned
+ORD00294,2026-04-30,CUST1368,Camera,Electronics,3,651,10,1757.7,West,Net Banking,Delivered
+ORD00295,2026-05-01,CUST1423,Monitor,Electronics,2,779,10,1402.2,North,Cash on Delivery,Shipped
+ORD00296,2026-02-07,CUST1593,Laptop,Electronics,3,1153,20,2767.2,West,UPI,Shipped
+ORD00297,2026-02-20,CUST1853,Monitor,Electronics,2,797,20,1275.2,South,Net Banking,Cancelled
+ORD00298,2026-03-07,CUST1750,Smartwatch,Wearables,4,963,5,3659.4,East,Debit Card,Shipped
+ORD00299,2026-05-20,CUST1536,Smartwatch,Wearables,2,1130,0,2260.0,North,Credit Card,Delivered
+ORD00300,2026-01-02,CUST1069,Tablet,Electronics,2,1311,5,2490.9,South,Credit Card,Shipped
+ORD00301,2026-05-10,CUST1653,Smartwatch,Wearables,3,143,20,343.2,West,Wallet,Returned
+ORD00302,2026-01-05,CUST1012,Laptop,Electronics,5,1149,15,4883.25,North,Cash on Delivery,Cancelled
+ORD00303,2026-05-18,CUST1825,Mouse,Accessories,1,1048,15,890.8,South,Credit Card,Delivered
+ORD00304,2026-05-15,CUST1539,Headphones,Accessories,2,413,20,660.8,East,UPI,Cancelled
+ORD00305,2026-04-12,CUST1578,Smartphone,Electronics,3,851,15,2170.05,South,Wallet,Shipped
+ORD00306,2026-03-18,CUST1388,Smartphone,Electronics,1,211,15,179.35,West,Cash on Delivery,Returned
+ORD00307,2026-01-15,CUST1865,Laptop,Electronics,2,189,15,321.3,West,Wallet,Cancelled
+ORD00308,2026-05-25,CUST1216,Smartphone,Electronics,5,107,5,508.25,West,UPI,Delivered
+ORD00309,2026-01-20,CUST1183,Mouse,Accessories,5,1174,0,5870.0,East,Credit Card,Shipped
+ORD00310,2026-05-31,CUST1166,Headphones,Accessories,4,177,10,637.2,South,Cash on Delivery,Returned
+ORD00311,2026-06-23,CUST1809,Camera,Electronics,3,806,5,2297.1,North,Cash on Delivery,Cancelled
+ORD00312,2026-01-14,CUST1348,Smartphone,Electronics,4,495,0,1980.0,West,UPI,Delivered
+ORD00313,2026-06-12,CUST1364,Mouse,Accessories,4,1024,5,3891.2,West,Net Banking,Shipped
+ORD00314,2026-06-24,CUST1302,Printer,Office,4,195,20,624.0,South,Wallet,Delivered
+ORD00315,2026-01-22,CUST1757,Mouse,Accessories,2,798,5,1516.2,West,UPI,Cancelled
+ORD00316,2026-01-28,CUST1368,Smartphone,Electronics,1,651,15,553.35,East,Credit Card,Shipped
+ORD00317,2026-01-23,CUST1568,Headphones,Accessories,4,939,20,3004.8,West,Credit Card,Delivered
+ORD00318,2026-01-23,CUST1612,Monitor,Electronics,5,210,20,840.0,East,Net Banking,Delivered
+ORD00319,2026-03-16,CUST1926,Tablet,Electronics,4,193,20,617.6,South,Cash on Delivery,Shipped
+ORD00320,2026-06-25,CUST1308,Tablet,Electronics,2,304,10,547.2,East,Net Banking,Shipped
+ORD00321,2026-01-17,CUST1306,Headphones,Accessories,4,585,15,1989.0,West,Credit Card,Cancelled
+ORD00322,2026-03-06,CUST1200,Keyboard,Accessories,4,1236,20,3955.2,West,Credit Card,Shipped
+ORD00323,2026-03-19,CUST1389,Laptop,Electronics,4,700,20,2240.0,East,Net Banking,Cancelled
+ORD00324,2026-04-21,CUST1617,Printer,Office,2,635,10,1143.0,South,Net Banking,Cancelled
+ORD00325,2026-02-15,CUST1990,Tablet,Electronics,3,616,15,1570.8,South,UPI,Returned
+ORD00326,2026-03-13,CUST1204,Tablet,Electronics,3,253,20,607.2,South,Wallet,Delivered
+ORD00327,2026-04-29,CUST1838,Keyboard,Accessories,4,616,0,2464.0,West,Wallet,Returned
+ORD00328,2026-02-05,CUST1732,Mouse,Accessories,2,537,5,1020.3,West,Net Banking,Delivered
+ORD00329,2026-04-25,CUST1547,Printer,Office,4,1212,15,4120.8,West,Cash on Delivery,Delivered
+ORD00330,2026-04-03,CUST1111,Camera,Electronics,5,1326,0,6630.0,South,Wallet,Cancelled
+ORD00331,2026-02-12,CUST1990,Printer,Office,1,1173,15,997.05,East,Net Banking,Delivered
+ORD00332,2026-01-03,CUST1764,Smartphone,Electronics,3,474,20,1137.6,South,Net Banking,Cancelled
+ORD00333,2026-04-11,CUST1154,Smartwatch,Wearables,5,1434,20,5736.0,East,Credit Card,Returned
+ORD00334,2026-01-27,CUST1851,Mouse,Accessories,4,195,0,780.0,South,UPI,Cancelled
+ORD00335,2026-03-29,CUST1356,Smartwatch,Wearables,2,1087,15,1847.9,West,Credit Card,Returned
+ORD00336,2026-06-28,CUST1045,Smartwatch,Wearables,3,157,10,423.9,North,Credit Card,Cancelled
+ORD00337,2026-06-15,CUST1178,Smartphone,Electronics,2,519,20,830.4,South,UPI,Returned
+ORD00338,2026-04-29,CUST1190,Keyboard,Accessories,4,1309,5,4974.2,West,Net Banking,Delivered
+ORD00339,2026-06-07,CUST1398,Keyboard,Accessories,4,1232,15,4188.8,North,Wallet,Shipped
+ORD00340,2026-02-22,CUST1818,Mouse,Accessories,1,1202,0,1202.0,South,UPI,Cancelled
+ORD00341,2026-02-20,CUST1540,Smartwatch,Wearables,1,557,15,473.45,East,Cash on Delivery,Returned
+ORD00342,2026-06-06,CUST1360,Tablet,Electronics,5,253,10,1138.5,West,Cash on Delivery,Shipped
+ORD00343,2026-06-22,CUST1688,Mouse,Accessories,5,1228,0,6140.0,South,UPI,Delivered
+ORD00344,2026-03-03,CUST1710,Mouse,Accessories,1,394,10,354.6,South,Cash on Delivery,Returned
+ORD00345,2026-04-18,CUST1433,Printer,Office,2,1197,15,2034.9,South,Net Banking,Shipped
+ORD00346,2026-05-23,CUST1191,Headphones,Accessories,4,611,5,2321.8,East,Net Banking,Delivered
+ORD00347,2026-04-02,CUST1834,Laptop,Electronics,4,299,5,1136.2,West,Cash on Delivery,Returned
+ORD00348,2026-04-15,CUST1500,Smartwatch,Wearables,4,1474,15,5011.6,South,Credit Card,Delivered
+ORD00349,2026-02-26,CUST1550,Mouse,Accessories,1,582,5,552.9,East,Debit Card,Returned
+ORD00350,2026-05-25,CUST1586,Smartwatch,Wearables,5,1066,0,5330.0,North,UPI,Cancelled
+ORD00351,2026-05-19,CUST1435,Laptop,Electronics,4,1138,5,4324.4,North,Wallet,Shipped
+ORD00352,2026-03-18,CUST1882,Laptop,Electronics,4,558,10,2008.8,North,Net Banking,Delivered
+ORD00353,2026-03-02,CUST1881,Keyboard,Accessories,5,1431,10,6439.5,West,Debit Card,Shipped
+ORD00354,2026-02-22,CUST1545,Keyboard,Accessories,1,1187,10,1068.3,East,Cash on Delivery,Shipped
+ORD00355,2026-03-24,CUST1975,Mouse,Accessories,3,1192,10,3218.4,North,Debit Card,Returned
+ORD00356,2026-01-16,CUST1255,Mouse,Accessories,2,1456,5,2766.4,South,Wallet,Cancelled
+ORD00357,2026-03-05,CUST1647,Tablet,Electronics,4,311,20,995.2,East,Wallet,Returned
+ORD00358,2026-04-07,CUST1412,Smartwatch,Wearables,1,1317,0,1317.0,East,Wallet,Cancelled
+ORD00359,2026-04-27,CUST1889,Smartwatch,Wearables,3,1211,0,3633.0,North,Wallet,Returned
+ORD00360,2026-06-12,CUST1223,Monitor,Electronics,1,1114,15,946.9,West,Debit Card,Returned
+ORD00361,2026-03-10,CUST1591,Monitor,Electronics,3,711,20,1706.4,South,Cash on Delivery,Returned
+ORD00362,2026-03-29,CUST1016,Laptop,Electronics,1,223,15,189.55,North,Debit Card,Returned
+ORD00363,2026-04-27,CUST1903,Laptop,Electronics,4,434,5,1649.2,East,Debit Card,Cancelled
+ORD00364,2026-01-24,CUST1680,Monitor,Electronics,3,188,10,507.6,South,Credit Card,Returned
+ORD00365,2026-06-10,CUST1720,Mouse,Accessories,2,899,0,1798.0,North,Credit Card,Shipped
+ORD00366,2026-05-03,CUST1531,Smartphone,Electronics,2,1235,5,2346.5,West,Credit Card,Delivered
+ORD00367,2026-06-28,CUST1489,Monitor,Electronics,1,884,5,839.8,North,Debit Card,Returned
+ORD00368,2026-01-23,CUST1902,Smartphone,Electronics,1,661,10,594.9,East,Debit Card,Returned
+ORD00369,2026-02-04,CUST1008,Headphones,Accessories,1,1106,20,884.8,South,Net Banking,Cancelled
+ORD00370,2026-02-24,CUST1880,Headphones,Accessories,4,1281,15,4355.4,South,Credit Card,Delivered
+ORD00371,2026-02-05,CUST1986,Smartphone,Electronics,5,806,10,3627.0,West,UPI,Shipped
+ORD00372,2026-03-05,CUST1615,Mouse,Accessories,1,528,20,422.4,East,Wallet,Delivered
+ORD00373,2026-06-18,CUST1521,Mouse,Accessories,2,1080,20,1728.0,South,Wallet,Returned
+ORD00374,2026-03-17,CUST1115,Laptop,Electronics,2,1033,15,1756.1,South,Net Banking,Delivered
+ORD00375,2026-05-16,CUST1396,Laptop,Electronics,3,668,5,1903.8,West,UPI,Shipped
+ORD00376,2026-05-01,CUST1014,Smartphone,Electronics,1,1222,0,1222.0,East,Debit Card,Delivered
+ORD00377,2026-01-16,CUST1785,Tablet,Electronics,5,606,20,2424.0,West,Net Banking,Returned
+ORD00378,2026-01-22,CUST1284,Camera,Electronics,5,1281,5,6084.75,North,UPI,Delivered
+ORD00379,2026-05-11,CUST1400,Keyboard,Accessories,2,1118,10,2012.4,North,UPI,Returned
+ORD00380,2026-03-03,CUST1118,Laptop,Electronics,2,196,15,333.2,West,Cash on Delivery,Delivered
+ORD00381,2026-03-21,CUST1718,Headphones,Accessories,1,45,5,42.75,North,Debit Card,Returned
+ORD00382,2026-03-30,CUST1170,Camera,Electronics,5,1496,10,6732.0,East,Debit Card,Cancelled
+ORD00383,2026-01-31,CUST1536,Laptop,Electronics,3,899,10,2427.3,North,UPI,Delivered
+ORD00384,2026-05-08,CUST1511,Smartwatch,Wearables,5,757,0,3785.0,South,UPI,Shipped
+ORD00385,2026-03-07,CUST1233,Smartphone,Electronics,5,1400,0,7000.0,North,Credit Card,Delivered
+ORD00386,2026-03-04,CUST1942,Laptop,Electronics,4,765,15,2601.0,South,Debit Card,Delivered
+ORD00387,2026-05-22,CUST1426,Tablet,Electronics,2,679,5,1290.1,East,UPI,Delivered
+ORD00388,2026-05-27,CUST1183,Monitor,Electronics,1,1048,0,1048.0,South,Cash on Delivery,Delivered
+ORD00389,2026-04-13,CUST1335,Smartphone,Electronics,4,598,10,2152.8,North,Cash on Delivery,Returned
+ORD00390,2026-01-03,CUST1803,Monitor,Electronics,2,617,20,987.2,East,Wallet,Shipped
+ORD00391,2026-04-29,CUST1750,Monitor,Electronics,5,1030,5,4892.5,South,Debit Card,Delivered
+ORD00392,2026-04-15,CUST1651,Laptop,Electronics,2,1129,10,2032.2,North,UPI,Delivered
+ORD00393,2026-06-18,CUST1542,Tablet,Electronics,3,232,5,661.2,South,Net Banking,Returned
+ORD00394,2026-01-16,CUST1943,Headphones,Accessories,3,210,0,630.0,South,Cash on Delivery,Returned
+ORD00395,2026-06-29,CUST1097,Monitor,Electronics,4,193,20,617.6,South,Wallet,Returned
+ORD00396,2026-01-20,CUST1678,Printer,Office,5,147,15,624.75,South,Debit Card,Cancelled
+ORD00397,2026-03-08,CUST1325,Monitor,Electronics,4,1455,10,5238.0,West,UPI,Shipped
+ORD00398,2026-01-20,CUST1159,Keyboard,Accessories,2,1217,0,2434.0,North,Debit Card,Returned
+ORD00399,2026-04-30,CUST1366,Monitor,Electronics,4,267,20,854.4,South,Net Banking,Cancelled
+ORD00400,2026-04-29,CUST1826,Mouse,Accessories,1,205,5,194.75,East,Wallet,Delivered
+ORD00401,2026-02-25,CUST1991,Monitor,Electronics,2,206,5,391.4,East,Net Banking,Delivered
+ORD00402,2026-06-23,CUST1974,Mouse,Accessories,3,376,0,1128.0,West,Net Banking,Shipped
+ORD00403,2026-01-25,CUST1012,Smartwatch,Wearables,1,306,0,306.0,North,Debit Card,Shipped
+ORD00404,2026-02-20,CUST1596,Tablet,Electronics,3,1425,0,4275.0,East,Credit Card,Delivered
+ORD00405,2026-01-17,CUST1926,Keyboard,Accessories,4,283,0,1132.0,East,Credit Card,Delivered
+ORD00406,2026-04-29,CUST1841,Laptop,Electronics,2,1195,15,2031.5,West,Net Banking,Delivered
+ORD00407,2026-04-08,CUST1930,Tablet,Electronics,2,744,5,1413.6,South,UPI,Cancelled
+ORD00408,2026-04-25,CUST1631,Headphones,Accessories,1,1277,20,1021.6,South,Wallet,Cancelled
+ORD00409,2026-05-08,CUST1089,Tablet,Electronics,5,1001,0,5005.0,East,Net Banking,Shipped
+ORD00410,2026-04-18,CUST1813,Keyboard,Accessories,5,530,20,2120.0,North,Net Banking,Cancelled
+ORD00411,2026-05-03,CUST1514,Camera,Electronics,4,724,20,2316.8,East,Net Banking,Cancelled
+ORD00412,2026-02-16,CUST1030,Laptop,Electronics,3,1242,5,3539.7,East,Credit Card,Returned
+ORD00413,2026-05-16,CUST1102,Monitor,Electronics,5,496,5,2356.0,South,Wallet,Shipped
+ORD00414,2026-03-10,CUST1866,Camera,Electronics,1,469,20,375.2,West,UPI,Shipped
+ORD00415,2026-02-15,CUST1935,Keyboard,Accessories,5,671,10,3019.5,North,Wallet,Cancelled
+ORD00416,2026-05-26,CUST1856,Printer,Office,2,1173,5,2228.7,West,Cash on Delivery,Cancelled
+ORD00417,2026-02-14,CUST1238,Smartwatch,Wearables,1,204,0,204.0,South,Credit Card,Returned
+ORD00418,2026-01-01,CUST1348,Monitor,Electronics,5,432,5,2052.0,South,UPI,Delivered
+ORD00419,2026-01-06,CUST1792,Headphones,Accessories,5,1463,5,6949.25,North,Cash on Delivery,Cancelled
+ORD00420,2026-01-19,CUST1344,Monitor,Electronics,4,1220,0,4880.0,East,UPI,Shipped
+ORD00421,2026-02-10,CUST1178,Tablet,Electronics,4,1349,10,4856.4,East,Debit Card,Shipped
+ORD00422,2026-04-07,CUST1746,Mouse,Accessories,3,280,5,798.0,North,Wallet,Returned
+ORD00423,2026-05-26,CUST1943,Laptop,Electronics,2,1253,10,2255.4,South,Wallet,Delivered
+ORD00424,2026-05-08,CUST1355,Headphones,Accessories,3,179,5,510.15,East,Debit Card,Delivered
+ORD00425,2026-06-21,CUST1214,Monitor,Electronics,4,43,10,154.8,South,Wallet,Delivered
+ORD00426,2026-03-31,CUST1049,Mouse,Accessories,1,1495,0,1495.0,West,Net Banking,Returned
+ORD00427,2026-02-12,CUST1559,Tablet,Electronics,4,795,10,2862.0,West,Credit Card,Returned
+ORD00428,2026-05-28,CUST1818,Keyboard,Accessories,2,944,0,1888.0,North,UPI,Delivered
+ORD00429,2026-03-23,CUST1174,Mouse,Accessories,1,171,10,153.9,West,Debit Card,Delivered
+ORD00430,2026-05-21,CUST1914,Smartphone,Electronics,3,1236,20,2966.4,West,Wallet,Delivered
+ORD00431,2026-04-21,CUST1054,Headphones,Accessories,5,909,5,4317.75,North,UPI,Shipped
+ORD00432,2026-02-18,CUST1271,Tablet,Electronics,5,1498,20,5992.0,East,UPI,Shipped
+ORD00433,2026-01-25,CUST1860,Laptop,Electronics,4,1190,20,3808.0,West,Debit Card,Delivered
+ORD00434,2026-04-03,CUST1843,Laptop,Electronics,4,199,10,716.4,West,Debit Card,Delivered
+ORD00435,2026-01-07,CUST1083,Keyboard,Accessories,2,1327,10,2388.6,West,Credit Card,Cancelled
+ORD00436,2026-04-12,CUST1093,Smartwatch,Wearables,4,1373,10,4942.8,West,Debit Card,Cancelled
+ORD00437,2026-04-08,CUST1269,Monitor,Electronics,2,932,0,1864.0,West,Net Banking,Cancelled
+ORD00438,2026-02-27,CUST1770,Mouse,Accessories,5,146,5,693.5,North,Credit Card,Cancelled
+ORD00439,2026-05-19,CUST1062,Tablet,Electronics,5,485,20,1940.0,West,Cash on Delivery,Returned
+ORD00440,2026-05-18,CUST1306,Smartwatch,Wearables,5,502,15,2133.5,North,Net Banking,Delivered
+ORD00441,2026-05-09,CUST1150,Printer,Office,5,1190,20,4760.0,North,Net Banking,Shipped
+ORD00442,2026-02-12,CUST1433,Keyboard,Accessories,2,278,0,556.0,North,Wallet,Returned
+ORD00443,2026-02-21,CUST1932,Headphones,Accessories,5,548,10,2466.0,North,Credit Card,Returned
+ORD00444,2026-05-23,CUST1532,Tablet,Electronics,5,687,10,3091.5,West,Credit Card,Returned
+ORD00445,2026-01-29,CUST1602,Tablet,Electronics,2,323,20,516.8,North,Credit Card,Delivered
+ORD00446,2026-03-15,CUST1392,Camera,Electronics,3,861,10,2324.7,West,Cash on Delivery,Returned
+ORD00447,2026-01-10,CUST1633,Headphones,Accessories,3,845,5,2408.25,West,Credit Card,Returned
+ORD00448,2026-03-26,CUST1918,Keyboard,Accessories,1,993,10,893.7,East,Credit Card,Cancelled
+ORD00449,2026-03-19,CUST1995,Mouse,Accessories,3,1026,0,3078.0,South,Debit Card,Cancelled
+ORD00450,2026-04-24,CUST1661,Monitor,Electronics,3,873,20,2095.2,North,Debit Card,Returned
+ORD00451,2026-02-24,CUST1840,Tablet,Electronics,4,1077,10,3877.2,North,Cash on Delivery,Shipped
+ORD00452,2026-01-17,CUST1799,Mouse,Accessories,5,846,5,4018.5,North,Debit Card,Shipped
+ORD00453,2026-02-21,CUST1051,Laptop,Electronics,2,87,15,147.9,East,Wallet,Shipped
+ORD00454,2026-03-12,CUST1650,Monitor,Electronics,4,1054,15,3583.6,North,Wallet,Delivered
+ORD00455,2026-03-03,CUST1181,Monitor,Electronics,4,1236,15,4202.4,West,Cash on Delivery,Cancelled
+ORD00456,2026-03-30,CUST1291,Headphones,Accessories,3,1430,0,4290.0,North,Net Banking,Delivered
+ORD00457,2026-02-11,CUST1693,Printer,Office,2,473,5,898.7,South,UPI,Returned
+ORD00458,2026-05-12,CUST1662,Laptop,Electronics,1,990,5,940.5,South,Cash on Delivery,Delivered
+ORD00459,2026-02-27,CUST1433,Mouse,Accessories,5,645,10,2902.5,West,UPI,Returned
+ORD00460,2026-03-06,CUST1844,Keyboard,Accessories,4,638,20,2041.6,West,Cash on Delivery,Delivered
+ORD00461,2026-01-02,CUST1623,Camera,Electronics,3,1169,20,2805.6,East,UPI,Delivered
+ORD00462,2026-05-04,CUST1882,Smartphone,Electronics,3,586,10,1582.2,East,UPI,Cancelled
+ORD00463,2026-02-18,CUST1824,Headphones,Accessories,5,512,0,2560.0,West,Wallet,Cancelled
+ORD00464,2026-06-24,CUST1302,Headphones,Accessories,1,1362,15,1157.7,East,Net Banking,Returned
+ORD00465,2026-04-10,CUST1835,Laptop,Electronics,5,1470,20,5880.0,South,UPI,Shipped
+ORD00466,2026-06-25,CUST1519,Camera,Electronics,4,1395,10,5022.0,East,Debit Card,Shipped
+ORD00467,2026-03-17,CUST1742,Smartphone,Electronics,4,282,10,1015.2,South,Wallet,Cancelled
+ORD00468,2026-06-17,CUST1762,Smartphone,Electronics,2,747,5,1419.3,East,Net Banking,Cancelled
+ORD00469,2026-04-06,CUST1871,Mouse,Accessories,5,622,15,2643.5,North,Net Banking,Delivered
+ORD00470,2026-06-12,CUST1483,Printer,Office,5,1291,0,6455.0,South,Cash on Delivery,Delivered
+ORD00471,2026-06-24,CUST1055,Tablet,Electronics,5,631,15,2681.75,South,Debit Card,Shipped
+ORD00472,2026-03-29,CUST1323,Tablet,Electronics,5,957,5,4545.75,South,Credit Card,Returned
+ORD00473,2026-03-27,CUST1004,Headphones,Accessories,3,1319,0,3957.0,West,UPI,Shipped
+ORD00474,2026-02-13,CUST1132,Printer,Office,2,1022,0,2044.0,West,Wallet,Returned
+ORD00475,2026-04-14,CUST1038,Tablet,Electronics,4,805,0,3220.0,South,Wallet,Cancelled
+ORD00476,2026-01-04,CUST1692,Monitor,Electronics,5,410,0,2050.0,North,Wallet,Shipped
+ORD00477,2026-02-27,CUST1392,Monitor,Electronics,3,284,0,852.0,East,Debit Card,Delivered
+ORD00478,2026-01-12,CUST1610,Mouse,Accessories,3,953,20,2287.2,East,Net Banking,Shipped
+ORD00479,2026-03-29,CUST1970,Smartwatch,Wearables,3,405,5,1154.25,West,Credit Card,Shipped
+ORD00480,2026-02-27,CUST1516,Headphones,Accessories,2,64,20,102.4,South,Credit Card,Cancelled
+ORD00481,2026-06-16,CUST1789,Laptop,Electronics,4,1331,10,4791.6,North,Cash on Delivery,Delivered
+ORD00482,2026-06-19,CUST1426,Smartphone,Electronics,1,118,0,118.0,West,Net Banking,Delivered
+ORD00483,2026-05-21,CUST1210,Mouse,Accessories,4,1457,5,5536.6,North,UPI,Returned
+ORD00484,2026-06-19,CUST1620,Smartphone,Electronics,5,572,20,2288.0,South,Net Banking,Delivered
+ORD00485,2026-05-11,CUST1803,Printer,Office,1,598,0,598.0,North,Net Banking,Shipped
+ORD00486,2026-06-05,CUST1366,Keyboard,Accessories,3,1091,5,3109.35,West,UPI,Shipped
+ORD00487,2026-01-11,CUST1338,Camera,Electronics,4,445,15,1513.0,South,Credit Card,Delivered
+ORD00488,2026-06-21,CUST1152,Smartphone,Electronics,1,1195,15,1015.75,North,Cash on Delivery,Delivered
+ORD00489,2026-01-26,CUST1270,Mouse,Accessories,2,955,10,1719.0,West,Credit Card,Delivered
+ORD00490,2026-02-14,CUST1436,Laptop,Electronics,3,757,10,2043.9,North,Credit Card,Delivered
+ORD00491,2026-01-03,CUST1915,Headphones,Accessories,2,693,10,1247.4,West,Cash on Delivery,Cancelled
+ORD00492,2026-01-24,CUST1410,Monitor,Electronics,3,394,0,1182.0,West,Net Banking,Cancelled
+ORD00493,2026-04-09,CUST1115,Smartwatch,Wearables,4,1348,5,5122.4,South,Wallet,Delivered
+ORD00494,2026-02-10,CUST1821,Smartphone,Electronics,4,1229,15,4178.6,West,Debit Card,Returned
+ORD00495,2026-04-02,CUST1494,Printer,Office,1,1421,5,1349.95,West,Credit Card,Returned
+ORD00496,2026-04-23,CUST1012,Laptop,Electronics,1,555,10,499.5,South,Wallet,Cancelled
+ORD00497,2026-05-13,CUST1677,Camera,Electronics,5,215,15,913.75,South,Net Banking,Cancelled
+ORD00498,2026-06-19,CUST1055,Tablet,Electronics,2,1163,20,1860.8,North,Wallet,Shipped
+ORD00499,2026-05-10,CUST1769,Smartwatch,Wearables,4,358,0,1432.0,West,UPI,Shipped
+ORD00500,2026-03-26,CUST1563,Mouse,Accessories,1,1058,5,1005.1,West,Net Banking,Shipped

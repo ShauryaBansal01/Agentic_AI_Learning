@@ -1,0 +1,44 @@
+# --- notebook runtime ---
+ipykernel
+python-dotenv
+
+# --- data / validation ---
+numpy
+pandas
+pydantic
+requests
+
+
+# --- langchain core ---
+langchain
+langchain_core
+langchain_community
+langchain-classic          # create_stuff_documents_chain, create_retrieval_chain
+langchain-text-splitters
+langchain-core
+langserve
+
+# --- model providers ---
+langchain-google-genai     # Gemini chat + embeddings
+langchain-huggingface      # HuggingFaceEmbeddings
+langchain-ollama           # local embeddings / chat via Ollama
+langchain-openai
+langchain_groq
+sentence-transformers      # backs HuggingFaceEmbeddings
+
+# --- document loaders ---
+pypdf                      # PyPDFLoader
+PyMuPDF                    # provides the `fitz` module - do NOT pip install `fitz`
+arxiv                      # ArxivLoader
+beautifulsoup4             # WebBaseLoader
+lxml                       # HTMLHeaderTextSplitter
+
+# --- vector stores ---
+chromadb
+langchain-chroma
+faiss-cpu
+
+# --- apps ---
+streamlit                  # apps/streamlit_ollama_app.py
+fastapi
+uvicorn

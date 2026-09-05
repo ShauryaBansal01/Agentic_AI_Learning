@@ -1,0 +1,32 @@
+# --- secrets ---
+.env
+*.key
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# --- virtual environments ---
+venv/
+.venv/
+env/
+.conda/
+Pyhton/venv/
+main_stuff/.conda/
+
+# --- generated artefacts ---
+*.log
+01-python/data/test_copy.txt
+01-python/**/Testdir/
+01-python/**/test_dir/
+
+# --- vector stores (regenerate by re-running the notebooks) ---
+02-langchain/05-vector-stores/faiss_index/
+02-langchain/**/chroma_db/
+.chroma/
+
+# --- os / editor ---
+.DS_Store
+Thumbs.db

@@ -1,0 +1,4 @@
+# Core Python learning track (notebooks in 01-basics .. 08-data-analysis)
+ipykernel
+numpy
+pandas
