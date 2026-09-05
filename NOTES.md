@@ -33,7 +33,10 @@ from, so the notes and the runnable code stay in sync.
 20. [Vector stores](#20-vector-stores)
 21. [Building a RAG pipeline](#21-building-a-rag-pipeline)
 22. [Serving it with Streamlit](#22-serving-it-with-streamlit)
-23. [Gotchas worth remembering](#23-gotchas-worth-remembering)
+23. [Groq and the LCEL translation chain](#23-groq-and-the-lcel-translation-chain)
+24. [Serving a chain with LangServe](#24-serving-a-chain-with-langserve)
+25. [Chatbots with message history](#25-chatbots-with-message-history)
+26. [Gotchas worth remembering](#26-gotchas-worth-remembering)
 
 ---
 
@@ -2150,7 +2153,291 @@ input_text:` guard is needed, and why expensive setup normally goes behind `@st.
 
 ---
 
-## 23. Gotchas worth remembering
+## 23. Groq and the LCEL translation chain
+
+> Notebook: [SimplellmLCEL](02-langchain/07-LCEL/SimplellmLCEL.ipynb)
+
+Everything up to here ran either on Gemini (API) or Ollama (local). **Groq** is a third option: a
+hosted inference provider that serves *open-weight* models on custom hardware, so it is fast and
+has a generous free tier. The LangChain surface is identical — only the constructor changes.
+
+```python
+import os
+from dotenv import load_dotenv
+from langchain_groq import ChatGroq
+
+load_dotenv()
+groq_api_key = os.getenv("GROQ_API_KEY")
+
+model = ChatGroq(model="openai/gpt-oss-20b", groq_api_key=groq_api_key)
+```
+
+Add `GROQ_API_KEY` to `.env` (key from <https://console.groq.com/keys>).
+
+### Messages instead of a prompt template
+
+Section 16 built the prompt from a `ChatPromptTemplate`. A model can also be invoked with a plain
+**list of message objects** — useful when the conversation is assembled in code rather than from a
+template.
+
+```python
+from langchain_core.messages import HumanMessage, SystemMessage
+
+messages = [
+    SystemMessage(content="Translate the following from English to French"),
+    HumanMessage(content="Hello, how are you?"),
+]
+
+res = model.invoke(messages)
+res.content        # 'Bonjour, comment ça va?'
+```
+
+`res` is an `AIMessage`. `StrOutputParser` pulls the text out of it:
+
+```python
+from langchain_core.output_parsers import StrOutputParser
+
+output_parser = StrOutputParser()
+output_parser.invoke(res)      # 'Bonjour, comment ça va ?'
+```
+
+### Chaining without a prompt
+
+Any two runnables compose, so a chain does not have to start with a prompt. Here the chain input
+*is* the message list:
+
+```python
+chain = model | output_parser
+chain.invoke(messages)         # 'Bonjour, comment allez-vous ?'
+```
+
+### Adding the template back
+
+Hard-coding "to French" in the system message means a new message list for every language. A
+template makes both the language and the text parameters:
+
+```python
+from langchain_core.prompts import ChatPromptTemplate
+
+generic_template = "Translate the following from English to {language}"
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", generic_template),
+    ("user", "{text}"),
+])
+
+prompt.invoke({"language": "Japanese", "text": "Hello How are you ?"})
+# ChatPromptValue(messages=[SystemMessage(...), HumanMessage(...)])
+```
+
+`prompt.invoke(...)` returns a `ChatPromptValue` — the rendered messages, *before* the model sees
+them. Handy for checking what actually gets sent.
+
+The full three-stage chain:
+
+```python
+chain = prompt | model | output_parser
+chain.invoke({"language": "Japanese", "text": "Hello, how are you?"})
+# 'こんにちは、お元気ですか？'
+```
+
+```
+dict input   ->   prompt    ->   model     ->  parser  ->  str
+{language,        messages       AIMessage      'こんにちは…'
+ text}
+```
+
+That chain is reused as-is in the next two sections.
+
+---
+
+## 24. Serving a chain with LangServe
+
+> Script: [langserver.py](02-langchain/apps/langserver.py)
+
+Streamlit (§22) gives a chain a *UI*. **LangServe** gives it an *HTTP API* — it takes any runnable
+and mounts it onto a FastAPI app as a set of REST endpoints, with request and response schemas
+derived from the chain itself.
+
+```python
+from fastapi import FastAPI
+from langserve import add_routes
+
+app = FastAPI(
+    title="LangChain LangServer",
+    description="A simple API server using Langchain runnable interfaces",
+    version="1.0",
+)
+
+add_routes(app, chain, path="/chain")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)
+```
+
+`chain` here is exactly the `prompt | model | output_parser` from §23.
+
+Run it:
+
+```bash
+cd 02-langchain/apps
+python langserver.py
+```
+
+### What `add_routes` actually mounts
+
+One call generates the whole surface (checked against the running app):
+
+| Endpoint | Method | What it does |
+| --- | --- | --- |
+| `/chain/invoke` | POST | one input, one output |
+| `/chain/batch` | POST | a list of inputs in a single request |
+| `/chain/stream` | POST | server-sent events, token by token |
+| `/chain/stream_log`, `/chain/stream_events` | POST | intermediate steps as they run |
+| `/chain/input_schema`, `/chain/output_schema`, `/chain/config_schema` | GET | JSON Schema, generated from the runnable |
+| `/chain/playground/` | GET | built-in browser UI for poking at the chain |
+| `/docs` | GET | FastAPI's own Swagger UI |
+
+Calling it:
+
+```bash
+curl -X POST http://127.0.0.1:8000/chain/invoke \
+  -H "Content-Type: application/json" \
+  -d "{\"input\": {\"language\": \"Japanese\", \"text\": \"Hello, how are you?\"}}"
+```
+
+The chain's own input goes **inside** an `"input"` key, and the answer comes back under
+`"output"`. That envelope is LangServe's convention, not the chain's.
+
+The takeaway: the chain is written and tested once in a notebook, then served without rewriting any
+of it. Streamlit and LangServe are two different front doors onto the same runnable.
+
+---
+
+## 25. Chatbots with message history
+
+> Notebook: [1-chat-bot](02-langchain/chat-bot/1-chat-bot.ipynb)
+
+### The problem: models are stateless
+
+Each `invoke` is an independent HTTP request. The model remembers nothing between them.
+
+```python
+model.invoke([HumanMessage(content="Hello my name is shaurya, I'm chief AI Engineer")])
+# "Hello Shaurya! It's great to meet the Chief AI Engineer..."
+
+model.invoke([HumanMessage(content="Hey what's my name and what do I do")])
+# no idea - that was a separate request
+```
+
+Memory is not a model feature; it is *replaying the transcript* on every call. Done by hand, it
+works:
+
+```python
+from langchain_core.messages import AIMessage
+
+model.invoke([
+    HumanMessage(content="Hello my name is shaurya, I'm chief AI Engineer"),
+    AIMessage(content="Hello shaurya, nice to meet you! How can I assist you today?"),
+    HumanMessage(content="Hey what's my name and what do I do"),
+])
+# "You're **Shaurya**, and you're a **Chief AI Engineer**."
+```
+
+### `RunnableWithMessageHistory` — automating the replay
+
+Rather than rebuilding that list by hand, wrap the runnable. It appends each input and output to a
+store keyed by **session id**, and prepends the history on the next call.
+
+```python
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.runnables import RunnableWithMessageHistory
+
+store = {}                      # session_id -> history
+
+def get_session_history(session_id: str) -> BaseChatMessageHistory:
+    if session_id not in store:
+        store[session_id] = ChatMessageHistory()
+    return store[session_id]
+
+with_message_history = RunnableWithMessageHistory(model, get_session_history)
+```
+
+The session id is passed at invoke time, under `configurable`:
+
+```python
+config = {"configurable": {"session_id": "chat1"}}
+
+with_message_history.invoke(
+    [HumanMessage(content="Hello my name is shaurya, I'm chief AI Engineer")],
+    config=config,
+)
+
+with_message_history.invoke(
+    [HumanMessage(content="what is my name and what do i do ?")],
+    config=config,
+).content
+# "You're Shaurya, and you're a Chief AI Engineer..."
+```
+
+Change `session_id` to `"chat2"` and it is a fresh conversation — that is how one process serves
+many users. `ChatMessageHistory` is **in-memory**: `store` is a plain dict, so everything is lost
+when the kernel restarts. Swap in a persistent history class for anything real.
+
+### Adding a system prompt: `MessagesPlaceholder`
+
+To put a persona in front of the conversation, the template needs a slot where the *whole history*
+is spliced in — that is `MessagesPlaceholder`, as opposed to `{input}`, which takes one string.
+
+```python
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "you are a helpful assistant, answer all the questions to the best of your abilities"),
+    MessagesPlaceholder(variable_name="messages"),
+])
+
+chain = prompt | model
+chain.invoke({"messages": [HumanMessage(content="Hello my name is shaurya")]})
+```
+
+### `input_messages_key` — the part that bites
+
+Wrapping the *model* works with a bare list, because the entire input is the messages. Wrapping the
+*chain* does not: the chain takes a **dict**, so the wrapper has to be told which key holds the
+messages.
+
+```python
+with_message_history = RunnableWithMessageHistory(
+    chain,
+    get_session_history,
+    input_messages_key="messages",      # matches MessagesPlaceholder(variable_name="messages")
+)
+
+config = {"configurable": {"session_id": "chat2"}}
+
+with_message_history.invoke(
+    {"messages": [HumanMessage(content="Hello my name is shaurya, I'm chief AI Engineer")]},
+    config=config,
+).content
+```
+
+The string in `input_messages_key` must match the `variable_name` of the placeholder. Leave it out
+on a dict-input chain and the history has nowhere to go.
+
+```
+              +---------- get_session_history(session_id) ----------+
+              |                                                     |
+user input -> RunnableWithMessageHistory -> prompt -> model -> AIMessage
+              |      (reads history, then appends both sides)       |
+              +-----------------------------------------------------+
+```
+
+---
+
+## 26. Gotchas worth remembering
 
 Things that actually cost time during this work:
 
@@ -2189,12 +2476,41 @@ Things that actually cost time during this work:
 12. **Index and query with the same embedding model.** Vectors from different models are not
     comparable, and the failure is silent — you just get bad results.
 
+13. **`OllamaEmbeddings()` has no default model.** Constructing it with no arguments raises a
+    pydantic `ValidationError: model — Field required`. Always pass
+    `OllamaEmbeddings(model="nomic-embed-text")`.
+
+14. **Ollama has to actually be running**, or every embed call dies with
+    `ConnectionError: Failed to connect to Ollama`. Two separate causes:
+    the server is not started (`ollama serve`, or launch the desktop app), **or** name
+    resolution — on Windows `localhost` resolves to IPv6 `::1` first while Ollama listens only on
+    IPv4 `127.0.0.1`. Pinning `base_url="http://127.0.0.1:11434"` removes the second one.
+
+15. **`CharacterTextSplitter` does not enforce `chunk_size`.** It splits on a single separator
+    (`"\n\n"` by default), so a paragraph longer than the limit stays whole and it just warns:
+    `Created a chunk of size 1370, which is longer than the specified 1000`. Use
+    `RecursiveCharacterTextSplitter` when the limit actually matters.
+
+16. **`RunnableWithMessageHistory` needs `input_messages_key` on a dict-input chain.** Wrapping a
+    bare model works without it; wrapping `prompt | model` does not, and the string must match the
+    `MessagesPlaceholder(variable_name=...)`.
+
+17. **LangServe wraps the payload.** POST bodies go in as `{"input": {...}}` and answers come back
+    under `"output"` — the chain's own schema sits one level down.
+
+18. **Groq model ids are namespaced.** It is `"openai/gpt-oss-20b"`, not `"gpt-oss-20b"` — the
+    prefix is the model's origin, not the provider being called.
+
 ---
 
 ## Where to go next
 
-- **Chat history / memory** — multi-turn conversations over the RAG chain
 - **Agents and tools** — letting the model choose which tool to call
 - **Structured output** — the Pydantic models from §15 as LLM response schemas
+- **Memory that survives a restart** — a persistent `BaseChatMessageHistory` instead of the
+  in-memory dict from §25
+- **History + retrieval together** — the chatbot of §25 over the RAG chain of §21, with the
+  follow-up question rewritten against the conversation before it hits the retriever
+- **Trimming history** — token-budget management once a conversation outgrows the context window
 - **Retrieval quality** — MMR, metadata filtering, hybrid search, re-ranking
 - **Evaluation** — LangSmith datasets and evaluators over the pipeline

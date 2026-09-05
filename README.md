@@ -42,8 +42,12 @@ Agentic_AI_Learning/
     ├── 05-vector-stores/          Chroma, FAISS
     │   └── faiss_index/           saved FAISS index (regenerable)
     ├── 06-pydantic/               models, optional fields, nesting, Field constraints
+    ├── 07-LCEL/                   Groq chat model, message objects, prompt | model | parser
     ├── apps/
-    │   └── streamlit_ollama_app.py   Streamlit chat UI over local Ollama
+    │   ├── streamlit_ollama_app.py   Streamlit chat UI over local Ollama
+    │   └── langserver.py             LangServe / FastAPI API over the same chain
+    ├── chat-bot/                  multi-turn chat: message history, session ids,
+    │                              MessagesPlaceholder
     └── data/                      speech.txt, sample.pdf, attention.pdf
 ```
 
@@ -64,6 +68,19 @@ pip install -r 01-python/requirements.txt
 pip install -r 02-langchain/requirements.txt
 ```
 
+### API keys
+
+`.env` at the repo root holds every key. What each one unlocks:
+
+| Key | Used by |
+| --- | --- |
+| `GROQ_API_KEY` | `07-LCEL/`, `chat-bot/`, `apps/langserver.py` — hosted `ChatGroq` models |
+| `GEMINI_API_KEY` | `01-getting-started/` — `ChatGoogleGenerativeAI` |
+| `HF_TOKEN` | `04-embeddings/` — HuggingFace models |
+| `LANGSMITH_*` | tracing; optional, everything runs without it |
+
+Ollama needs no key — it runs locally.
+
 ### Running the Streamlit app
 
 Needs [Ollama](https://ollama.com) running locally:
@@ -75,6 +92,19 @@ ollama pull nomic-embed-text        # the embedding model the notebooks use
 cd 02-langchain/apps
 streamlit run streamlit_ollama_app.py
 ```
+
+### Running the LangServe API
+
+Serves the §23 translation chain over HTTP. Needs `GROQ_API_KEY`:
+
+```bash
+cd 02-langchain/apps
+python langserver.py                # http://127.0.0.1:8000
+```
+
+- `POST /chain/invoke` — `{"input": {"language": "Japanese", "text": "Hello"}}`
+- `/chain/playground/` — built-in UI
+- `/docs` — FastAPI's Swagger UI
 
 ---
 
@@ -95,3 +125,9 @@ streamlit run streamlit_ollama_app.py
 - Embeddings need a *dedicated embedding model*. `gemma:2b` is a chat model and has no embedding
   head — `ollama pull nomic-embed-text` instead.
 - `faiss_index/` and any Chroma directories are git-ignored; re-run the notebook to rebuild them.
+- `OllamaEmbeddings` has **no default model** — `OllamaEmbeddings()` raises a pydantic
+  `ValidationError`. Pass `model="nomic-embed-text"` explicitly.
+- If Ollama calls fail with `ConnectionError`, either the server is not running, or `localhost`
+  resolved to IPv6 `::1` while Ollama listens on IPv4 only. `base_url="http://127.0.0.1:11434"`
+  settles the second case.
+- `langserve` pulls in `fastapi` + `uvicorn`; `langchain_groq` needs `GROQ_API_KEY` in `.env`.
