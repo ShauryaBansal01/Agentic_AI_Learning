@@ -47,8 +47,10 @@ Agentic_AI_Learning/
     │   ├── streamlit_ollama_app.py   Streamlit chat UI over local Ollama
     │   └── langserver.py             LangServe / FastAPI API over the same chain
     ├── chat-bot/                  multi-turn chat: message history, session ids,
-    │                              MessagesPlaceholder
-    └── data/                      speech.txt, sample.pdf, attention.pdf
+    │                              MessagesPlaceholder, trimming with trim_messages
+    ├── data/                      speech.txt, sample.pdf, attention.pdf
+    └── vectorrectriver/           Document objects, Chroma + HuggingFace embeddings,
+                                   retrievers, a RAG chain built from raw runnables
 ```
 
 Notebooks are numbered in the order they should be read within each folder.
@@ -74,9 +76,9 @@ pip install -r 02-langchain/requirements.txt
 
 | Key | Used by |
 | --- | --- |
-| `GROQ_API_KEY` | `07-LCEL/`, `chat-bot/`, `apps/langserver.py` — hosted `ChatGroq` models |
+| `GROQ_API_KEY` | `07-LCEL/`, `chat-bot/`, `vectorrectriver/`, `apps/langserver.py` — hosted `ChatGroq` models |
 | `GEMINI_API_KEY` | `01-getting-started/` — `ChatGoogleGenerativeAI` |
-| `HF_TOKEN` | `04-embeddings/` — HuggingFace models |
+| `HF_TOKEN` | `04-embeddings/`, `vectorrectriver/` — HuggingFace models |
 | `LANGSMITH_*` | tracing; optional, everything runs without it |
 
 Ollama needs no key — it runs locally.
@@ -131,3 +133,7 @@ python langserver.py                # http://127.0.0.1:8000
   resolved to IPv6 `::1` while Ollama listens on IPv4 only. `base_url="http://127.0.0.1:11434"`
   settles the second case.
 - `langserve` pulls in `fastapi` + `uvicorn`; `langchain_groq` needs `GROQ_API_KEY` in `.env`.
+- `HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")` needs no key or server — it downloads the
+  model once and runs locally. It is the quickest path when Ollama isn't running.
+- `RunnableWithMessageHistory` warns that it is deprecated in favour of LangGraph persistence. It
+  still works, and the notebooks use it to show the mechanics.

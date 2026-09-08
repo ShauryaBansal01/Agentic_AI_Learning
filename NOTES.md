@@ -36,7 +36,8 @@ from, so the notes and the runnable code stay in sync.
 23. [Groq and the LCEL translation chain](#23-groq-and-the-lcel-translation-chain)
 24. [Serving a chain with LangServe](#24-serving-a-chain-with-langserve)
 25. [Chatbots with message history](#25-chatbots-with-message-history)
-26. [Gotchas worth remembering](#26-gotchas-worth-remembering)
+26. [Documents, retrievers and a hand-built RAG chain](#26-documents-retrievers-and-a-hand-built-rag-chain)
+27. [Gotchas worth remembering](#27-gotchas-worth-remembering)
 
 ---
 
@@ -2435,9 +2436,227 @@ user input -> RunnableWithMessageHistory -> prompt -> model -> AIMessage
               +-----------------------------------------------------+
 ```
 
+### Trimming the history so it fits the context window
+
+`store` only ever grows. Every turn replays the whole transcript, so a long conversation eventually
+overflows the model's context window — and pays for the whole thing again on every call.
+`trim_messages` is a runnable that cuts the list down *before* it reaches the model.
+
+```python
+from langchain_core.messages import SystemMessage, trim_messages
+
+trimmer = trim_messages(
+    max_tokens=45,
+    strategy="last",               # keep the END of the conversation
+    token_counter="approximate",   # or pass the model itself: token_counter=model
+    include_system=True,           # never drop the system prompt
+    allow_partial=False,           # don't cut a message in half
+    start_on="human",              # the surviving window must begin with a HumanMessage
+)
+
+messages = [
+    SystemMessage(content="you are a helpful assistant, answer all the questions to the best of your abilities"),
+    HumanMessage(content="Hello my name is shaurya, I'm chief AI Engineer"),
+    AIMessage(content="Hello shaurya, nice to meet you! How can I assist you today?"),
+    HumanMessage(content="Hey what's my name and what do I do"),
+]
+
+trimmer.invoke(messages)
+# [SystemMessage('you are a helpful assistant...'),
+#  HumanMessage("Hey what's my name and what do I do")]
+```
+
+| Argument | What it controls |
+| --- | --- |
+| `max_tokens` | the budget the surviving messages must fit into |
+| `strategy` | `"last"` keeps the most recent turns, `"first"` keeps the oldest |
+| `token_counter` | `"approximate"` for a cheap estimate, or a chat model for its real tokeniser |
+| `include_system` | keeps the `SystemMessage` regardless of the budget |
+| `allow_partial` | whether a message may be truncated mid-way to fit |
+| `start_on` | message type the trimmed list must start with — keeps human/AI turns paired |
+
+### Wiring the trimmer into the chain
+
+The trimmer runs on the `messages` key, and everything else about the chain stays the same:
+
+```python
+from operator import itemgetter
+from langchain_core.runnables import RunnablePassthrough
+
+chain = (
+    RunnablePassthrough.assign(messages=itemgetter("messages") | trimmer)
+    | prompt
+    | model
+)
+```
+
+`RunnablePassthrough.assign(...)` passes the input dict straight through but **overwrites one key**
+— here `messages` is replaced by its trimmed version. `itemgetter("messages")` pulls that key out
+of the dict, so the trimmer receives a plain list rather than the dict.
+
+### Trimming is lossy — that is the point
+
+```python
+chain.invoke({"messages": messages + [HumanMessage(content="Hey what do I do and what is my name")]})
+# "I don't have any personal info about you, so I can't tell you your name..."
+```
+
+At 45 tokens the trimmer kept only the system message and the final question — the turn where the
+name was introduced fell outside the budget, so the model genuinely cannot answer. Nothing errored;
+the bot simply forgot. The budget *is* the memory span, and the same thing happens after wrapping
+the trimmed chain in `RunnableWithMessageHistory`:
+
+```python
+with_message_history = RunnableWithMessageHistory(
+    chain, get_session_history, input_messages_key="messages"
+)
+with_message_history.invoke({"messages": messages + [...]}, config={"configurable": {"session_id": "chat3"}})
+```
+
+The history keeps accumulating in `store`; the trimmer just narrows the slice of it that the model
+actually sees.
+
 ---
 
-## 26. Gotchas worth remembering
+## 26. Documents, retrievers and a hand-built RAG chain
+
+> Notebook: [vectorretriver](02-langchain/vectorrectriver/vectorretriver.ipynb)
+
+§21 built a RAG pipeline out of the prebuilt `create_stuff_documents_chain` /
+`create_retrieval_chain` helpers. This section takes the lid off and assembles the same thing from
+plain runnables, which is what those helpers are doing underneath.
+
+### The `Document` abstraction
+
+Every loader, splitter and vector store in LangChain speaks in `Document` objects — one unit of
+text plus arbitrary metadata:
+
+```python
+from langchain_core.documents import Document
+
+documents = [
+    Document(page_content="...text of the chunk...", metadata={"source": "doc1.txt"}),
+    Document(page_content="...", metadata={"source": "doc2.txt"}),
+    Document(page_content="...", metadata={"source": "doc3.txt"}),
+]
+```
+
+- `page_content` — a string, the text itself.
+- `metadata` — a dict: where it came from, what it relates to, anything worth filtering on later.
+
+A `Document` is usually a **chunk** of a larger file, not the whole file — that is what §18's
+splitters produce. Writing them by hand, as above, is just a way to get a controlled corpus for
+experimenting.
+
+### Store: Chroma over HuggingFace embeddings
+
+```python
+from langchain_chroma import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
+
+embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+vectorstore = Chroma.from_documents(documents, embedding=embeddings)
+```
+
+`all-MiniLM-L6-v2` runs locally, downloads once (~90 MB) and needs no server — handy when Ollama
+isn't running. Without a `persist_directory` the collection lives in memory and disappears with the
+kernel.
+
+Three ways to query it:
+
+```python
+# sync
+vectorstore.similarity_search("knmbdhjiabedhbjad", k=2)
+
+# async — same call inside an event loop (a notebook cell can `await` directly)
+await vectorstore.asimilarity_search("knmbdhjiabedhbjad", k=2)
+
+# with scores
+vectorstore.similarity_search_with_score("knmbdhjiabedhbjad", k=2)
+# [(Document(...), 2.43e-13), ...]
+```
+
+Every LangChain store exposes the `a`-prefixed async twin of each method. The score is a **distance
+again, not a similarity** — the near-zero value above is a query that was an exact copy of a stored
+document.
+
+### Why retrievers exist
+
+A `VectorStore` is **not** a `Runnable`, so it cannot be dropped into an LCEL chain — no `|`, no
+`.batch()`, no async interface for free. A `Retriever` *is* a runnable wrapper around one search
+method of the store.
+
+Built by hand, to show there is no magic in it:
+
+```python
+from langchain_core.runnables import RunnableLambda
+
+retriever = RunnableLambda(vectorstore.similarity_search).bind(k=1)
+retriever.batch(["knmbdhjiabedhbjad"])      # -> [[Document(...)]]
+```
+
+`RunnableLambda` turns any callable into a runnable; `.bind(k=1)` freezes an argument so the chain
+only has to supply the query. `batch` then comes for free.
+
+The built-in version does the same thing with the knobs named:
+
+```python
+retriever = vectorstore.as_retriever(
+    search_type="similarity",
+    search_kwargs={"k": 1},
+)
+retriever.batch(["knmbdhjiabedhbjad"])
+```
+
+| `search_type` | What it does |
+| --- | --- |
+| `"similarity"` | plain nearest-neighbour, the default |
+| `"mmr"` | maximal marginal relevance — trades a little relevance for less redundancy |
+| `"similarity_score_threshold"` | drops anything below `score_threshold`, so it may return nothing |
+
+`search_kwargs` is passed straight through to the underlying store call (`k`, `filter`,
+`score_threshold`, …).
+
+### The RAG chain, without the helpers
+
+```python
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+
+message = """
+Answer this question using the provided context only.
+
+{question}
+
+Context:
+{context}
+"""
+
+prompt = ChatPromptTemplate.from_messages([("human", message)])
+
+rag_chain = {"context": retriever, "question": RunnablePassthrough()} | prompt | llm
+
+rag_chain.invoke("knmbdhjiabedhbjad").content
+```
+
+The dict is the whole trick. A plain `dict` in an LCEL chain is coerced into a **`RunnableParallel`**:
+each value receives the *same* input and runs, and the results are collected into a dict with the
+same keys. So the single string `"knmbdhjiabedhbjad"` goes to both branches at once —
+`retriever` turns it into documents for `{context}`, while `RunnablePassthrough()` hands it
+through unchanged for `{question}`.
+
+```
+                 +-- retriever ------------> context --+
+"question str" --+                                     +--> prompt -> llm -> AIMessage
+                 +-- RunnablePassthrough --> question -+
+```
+
+That is exactly what `create_retrieval_chain` wraps up. Worth knowing both: the helper for real
+work, the manual form for when the shape of the chain has to change.
+
+---
+
+## 27. Gotchas worth remembering
 
 Things that actually cost time during this work:
 
@@ -2501,16 +2720,44 @@ Things that actually cost time during this work:
 18. **Groq model ids are namespaced.** It is `"openai/gpt-oss-20b"`, not `"gpt-oss-20b"` — the
     prefix is the model's origin, not the provider being called.
 
+19. **`RunnableWithMessageHistory` is deprecated.** It still works, but every construction warns
+    `Use LangGraph's built-in persistence instead`. Fine for learning the mechanics; reach for
+    LangGraph checkpointers when building something real.
+
+20. **A too-small trim budget silently lobotomises the bot.** `trim_messages(max_tokens=45)` drops
+    the turn that introduced the user's name, and the model then answers "I don't know who you
+    are" — no error, just amnesia. The budget is the memory span.
+
+21. **A `VectorStore` is not a `Runnable`.** It cannot go into an LCEL chain directly. Convert it
+    with `as_retriever()`, or wrap one method in `RunnableLambda(...).bind(k=1)`.
+
+22. **A plain `dict` inside a chain becomes a `RunnableParallel`.** In
+    `{"context": retriever, "question": RunnablePassthrough()} | prompt | llm` both values get the
+    *same* input and run side by side, and their results become the prompt's variables. It reads
+    like a literal, but it executes.
+
+23. **Re-running `Chroma.from_documents` in the same kernel duplicates the corpus.** The in-memory
+    collection survives the cell, so the second run appends a second copy — and searches start
+    returning the same text twice under different ids. Restart the kernel, or build the store once.
+
+24. **Different embedding models, different score scales.** Chroma's
+    `similarity_search_with_score` returns a **distance** like FAISS (an exact match scores ~0,
+    not ~1). Never compare scores across stores or across embedding models.
+
 ---
 
 ## Where to go next
 
 - **Agents and tools** — letting the model choose which tool to call
 - **Structured output** — the Pydantic models from §15 as LLM response schemas
-- **Memory that survives a restart** — a persistent `BaseChatMessageHistory` instead of the
-  in-memory dict from §25
-- **History + retrieval together** — the chatbot of §25 over the RAG chain of §21, with the
+- **Memory that survives a restart** — a persistent `BaseChatMessageHistory`, or LangGraph
+  checkpointers, instead of the in-memory dict from §25
+- **History + retrieval together** — the chatbot of §25 over the RAG chain of §26, with the
   follow-up question rewritten against the conversation before it hits the retriever
-- **Trimming history** — token-budget management once a conversation outgrows the context window
-- **Retrieval quality** — MMR, metadata filtering, hybrid search, re-ranking
+- **Retrieval quality** — the `"mmr"` and `"similarity_score_threshold"` search types from §26 in
+  anger, plus metadata filtering, hybrid search and re-ranking
+- **Persisting the vector store** — `persist_directory` so the corpus is embedded once, not once
+  per kernel restart
+- **LangGraph** — the successor to `RunnableWithMessageHistory`, and the way to build loops and
+  branches that LCEL's straight-line `|` cannot express
 - **Evaluation** — LangSmith datasets and evaluators over the pipeline
