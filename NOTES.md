@@ -1,7 +1,7 @@
 # Agentic AI Learning — Notes
 
 Everything covered so far, in the order it was learned: **plain Python → advanced Python →
-data libraries → Pydantic → LangChain → RAG**. Every section links to the notebook it came
+data libraries → Pydantic → LangChain → RAG → LangChain v1 agents**. Every section links to the notebook it came
 from, so the notes and the runnable code stay in sync.
 
 ---
@@ -37,7 +37,17 @@ from, so the notes and the runnable code stay in sync.
 24. [Serving a chain with LangServe](#24-serving-a-chain-with-langserve)
 25. [Chatbots with message history](#25-chatbots-with-message-history)
 26. [Documents, retrievers and a hand-built RAG chain](#26-documents-retrievers-and-a-hand-built-rag-chain)
-27. [Gotchas worth remembering](#27-gotchas-worth-remembering)
+
+**Part 3 — LangChain v1**
+27. [What changed in v1, and the `uv` project](#27-what-changed-in-v1-and-the-uv-project)
+28. [Agents with `create_agent`](#28-agents-with-create_agent)
+29. [`init_chat_model` and provider strings](#29-init_chat_model-and-provider-strings)
+30. [Messages in v1](#30-messages-in-v1)
+31. [Tools and the tool-execution loop](#31-tools-and-the-tool-execution-loop)
+32. [Structured output](#32-structured-output)
+
+**Reference**
+33. [Gotchas worth remembering](#33-gotchas-worth-remembering)
 
 ---
 
@@ -2656,7 +2666,451 @@ work, the manual form for when the shape of the chain has to change.
 
 ---
 
-## 27. Gotchas worth remembering
+# Part 3 — LangChain v1
+
+## 27. What changed in v1, and the `uv` project
+
+> Project: [Langchainupdated/](Langchainupdated/)
+
+Everything in Part 2 was written against LangChain 0.x. **LangChain 1.x is a different API** — not
+a coat of paint. Rather than rewrite the old notebooks, the v1 work lives in its own project —
+[Langchainupdated/](Langchainupdated/), a `uv` project on Python 3.11 with its own `.env` — so both
+versions stay runnable side by side.
+
+```bash
+cd Langchainupdated
+uv sync                 # reads pyproject.toml + uv.lock, builds .venv
+```
+
+`uv` replaces `pip install -r requirements.txt` here: `pyproject.toml` declares the dependencies,
+`uv.lock` pins the exact resolved versions, and `.python-version` pins the interpreter. `uv sync`
+reproduces the whole environment from those three files.
+
+What actually changed in v1, in one table:
+
+| 0.x (Part 2) | 1.x (Part 3) |
+| --- | --- |
+| `ChatGroq(...)`, `ChatGoogleGenerativeAI(...)` | `init_chat_model("groq:openai/gpt-oss-120b")` |
+| `from langchain_core.messages import ...` | `from langchain.messages import ...` |
+| `from langchain_core.tools import tool` | `from langchain.tools import tool` |
+| chains stitched by hand with `\|` | `create_agent(...)` — a compiled LangGraph |
+| `res.content` is always a `str` | `res.content` may be a list of **content blocks**; `res.text` is the string |
+| `create_stuff_documents_chain`, `create_retrieval_chain` | moved to `langchain-classic` |
+
+LCEL still works — `prompt | model | parser` is unchanged. What v1 adds is a level above it.
+
+---
+
+## 28. Agents with `create_agent`
+
+> Notebook: [langchain.ipynb](Langchainupdated/updatedlangchain/langchain.ipynb)
+
+Every chain up to here was a fixed pipeline: the steps and their order were decided when the chain
+was written. An **agent** inverts that — the model decides which tools to call, with what
+arguments, and how many times, before it answers.
+
+```python
+from langchain.agents import create_agent
+
+def get_weather(city: str) -> str:
+    """Get the weather of this city."""
+    return f"The weather in {city} is sunny"
+
+agent = create_agent(
+    model="google_genai:gemini-2.5-flash",
+    tools=[get_weather],
+    system_prompt="You are a helpful assistant",
+)
+
+agent      # <langgraph.graph.state.CompiledStateGraph object at 0x...>
+```
+
+Note the type: `create_agent` returns a **`CompiledStateGraph`** — a LangGraph graph, not a
+`Runnable` chain. That is the actual headline of v1: agents are graphs with a loop in them
+(model → tool → model → …), which a straight-line `|` pipeline cannot express.
+
+A plain function is enough to be a tool here. The **docstring is not decoration** — it is the
+description the model reads when deciding whether to call it, and the type hints become the
+argument schema.
+
+### Invoking it
+
+The input is a state dict, and `messages` is the channel the conversation lives on:
+
+```python
+res = agent.invoke({"messages": [{"role": "user", "content": "What is the weather in delhi"}]})
+
+res["messages"][-1].content      # 'The weather in delhi is sunny'
+```
+
+`res["messages"]` is the whole transcript, not just the answer — the human turn, the `AIMessage`
+carrying the tool call, the `ToolMessage` with the result, and the final `AIMessage`. The last
+element is the answer; the rest is the trace of how it got there.
+
+```
+{"messages": [...]}  ->  model  --tool_calls-->  tool  --ToolMessage-->  model  ->  final answer
+                           ^                                                |
+                           +--------------- loops until no tool call -------+
+```
+
+A bare string in place of the list also works — `agent.invoke({"messages": "what is the weather in
+delhi"})` — but the explicit `{"role", "content"}` form is what scales to multi-turn.
+
+---
+
+## 29. `init_chat_model` and provider strings
+
+> Notebook: [modelintegration.ipynb](Langchainupdated/updatedlangchain/modelintegration.ipynb)
+
+Part 2 imported a different class per provider. v1 adds one factory that takes a
+`"provider:model"` string, so swapping providers is a one-string edit:
+
+```python
+from langchain.chat_models import init_chat_model
+
+model = init_chat_model("google_genai:gemini-flash-latest")
+model = init_chat_model("groq:openai/gpt-oss-20b")
+```
+
+The provider-specific classes still exist and behave identically — `init_chat_model` just picks
+one for you:
+
+```python
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
+
+model = ChatGoogleGenerativeAI(model="gemini-flash-latest")
+model = ChatGroq(model="openai/gpt-oss-120b")
+```
+
+The provider package still has to be installed — `init_chat_model` resolves the string to a class,
+it does not vendor the SDK.
+
+### `.content` vs `.text`
+
+A v1 response's `content` is no longer guaranteed to be a string. For Gemini it comes back as a
+list of **content blocks**:
+
+```python
+res = model.invoke("Hi how are you")
+res.content
+# [{'type': 'text', 'text': "Hello! I'm doing well...", 'extras': {'signature': '...'}}]
+```
+
+That is the shape that lets one message carry text *and* reasoning *and* tool calls together.
+`res.text` always gives the plain string, so prefer it over `res.content` when all you want is the
+answer.
+
+### Streaming
+
+```python
+for chunk in model.stream("Write me a 500 word paragraph on Artificial Intelligence"):
+    print(chunk.text, end="|", flush=True)
+```
+
+Each chunk is a partial `AIMessage`. The run of empty `|` separators at the start is real: the
+model is emitting reasoning-token chunks that carry no text yet.
+
+### Batch
+
+`batch` sends several independent prompts and returns the answers in the same order:
+
+```python
+responses = model.batch([
+    "why do parrots have colorful feathers?",
+    "How do airplanes fly?",
+    "what is quantum computing?",
+])
+```
+
+They run **concurrently**, which is the point — three sequential `invoke` calls would take three
+round-trips. Cap the fan-out when the provider rate-limits:
+
+```python
+model.batch([...], config={"max_concurrency": 5})
+```
+
+`invoke` / `stream` / `batch` (and their `a`-prefixed async twins) are the standard runnable
+interface — every chain in Part 2 has them too.
+
+---
+
+## 30. Messages in v1
+
+> Notebook: [mesaages.ipynb](Langchainupdated/updatedlangchain/mesaages.ipynb)
+
+The import path moved from `langchain_core.messages` to `langchain.messages`; the objects are the
+same ones from §23.
+
+```python
+from langchain.messages import SystemMessage, HumanMessage, AIMessage
+```
+
+| Type | What it is |
+| --- | --- |
+| `SystemMessage` | context, persona, instructions — how the model should behave |
+| `HumanMessage` | user input |
+| `AIMessage` | what the model generated |
+| `ToolMessage` | the result of a tool call, fed back to the model |
+
+**A plain string is a valid prompt** — `model.invoke("what is langchain")` — and it is the right
+choice for one-shot generation where no history is being kept. The list-of-messages form is for
+when the roles matter:
+
+```python
+messages = [
+    SystemMessage("You are a poetry expert"),
+    HumanMessage("Write a poem of AI/ML"),
+]
+res = model.invoke(messages)
+res.content
+```
+
+Note the positional form: `SystemMessage("...")` works as well as `SystemMessage(content="...")`.
+
+Messages also carry optional identity metadata, which is what makes multi-user transcripts
+readable later:
+
+```python
+human_msg = HumanMessage(content="hello", name="Shaurya", id="123")
+model.invoke([human_msg])
+```
+
+`name` and `id` travel with the message through the whole graph; not every provider forwards
+`name` to the model, but it survives in the transcript either way.
+
+---
+
+## 31. Tools and the tool-execution loop
+
+> Notebook: [tools.ipynb](Langchainupdated/updatedlangchain/tools.ipynb)
+
+`create_agent` (§28) runs the tool loop for you. This section runs it by hand, which is the only
+way to see what the agent is actually doing.
+
+A tool is two things bolted together:
+
+1. a **schema** — name, description, and argument definitions (JSON Schema under the hood), and
+2. a **function** to execute when the model asks for it.
+
+The `@tool` decorator builds both from the Python function:
+
+```python
+from langchain.tools import tool
+
+@tool
+def get_weather(location: str) -> str:
+    """Get the weather of the location"""
+    return f"its sunny in {location}"
+```
+
+The name comes from the function, the argument schema from the type hints, and the description
+**from the docstring** — that is the text the model reads when choosing. A vague docstring is a
+tool the model calls at the wrong moment.
+
+### Binding tools to a model
+
+```python
+model_with_tools = model.bind_tools([get_weather])
+```
+
+`bind_tools` returns a *new* model with the tool schemas attached to every request; the original is
+untouched. Binding does not give the model the ability to *run* anything — it can only ask.
+
+```python
+res = model_with_tools.invoke("Whats the weather in delhi")
+
+res.content        # '' - nothing to say yet
+res.tool_calls     # [{'name': 'get_weather', 'args': {'location': 'Delhi'}, 'id': 'fc_...', ...}]
+
+for tool_call in res.tool_calls:
+    print(tool_call["name"], tool_call["args"])
+```
+
+An `AIMessage` with tool calls usually has **empty content**. It is a request, not an answer — and
+that is the whole trap: whatever runs the loop has to check `tool_calls`, not just print `content`.
+
+### The three-step loop
+
+```python
+# 1. the model generates tool calls
+message = [{"role": "user", "content": "What is the weather in delhi"}]
+ai_msg = model_with_tools.invoke(message)
+message.append(ai_msg)
+
+# 2. execute each call and collect the results
+for tool_call in ai_msg.tool_calls:
+    tool_result = get_weather.invoke(tool_call)     # -> ToolMessage
+    message.append(tool_result)
+
+# 3. hand the results back so the model can answer
+final_res = model_with_tools.invoke(message)
+final_res.text          # 'The current weather in Delhi is sunny. Enjoy the clear skies!'
+```
+
+Passing the **whole `tool_call` dict** to `.invoke()` — not just `tool_call["args"]` — is what makes
+the tool return a `ToolMessage` already stamped with the matching `tool_call_id`. Pass only the args
+and you get the bare return value, leaving you to build the `ToolMessage` and pair the id yourself.
+Get that pairing wrong and the provider rejects the next request.
+
+The accumulated `message` list tells the story:
+
+```
+[ {'role': 'user', ...},                       the question
+  AIMessage(content='', tool_calls=[...]),     the model asking for a tool
+  ToolMessage('its sunny in Delhi', ...),      what the tool returned
+  AIMessage('The current weather in Delhi...') the answer built from it ]
+```
+
+That is exactly the transcript `create_agent` produces in `res["messages"]` — the agent *is* this
+loop, wrapped in a graph that repeats it until the model stops asking for tools.
+
+---
+
+## 32. Structured output
+
+> Notebook: [structuredOutput.ipynb](Langchainupdated/updatedlangchain/structuredOutput.ipynb)
+
+Prose is fine for a human reader and useless for the next line of code. `with_structured_output`
+binds a schema to the model so `invoke` returns a **typed object** instead of a string — no regexes,
+no JSON parsing, no "sometimes it adds a preamble".
+
+### Pydantic — the richest option
+
+```python
+from pydantic import BaseModel, Field
+
+class Movie(BaseModel):
+    title: str = Field(description="The title of the movie")
+    year: int = Field(description="The movie was released this year")
+    director: str = Field(description="The director of this movie")
+    rating: float = Field(description="The movies rating out of 10")
+
+structure_model = model.with_structured_output(Movie)
+structure_model.invoke("Provide Details about the movie Inception")
+# Movie(title='Inception', year=2010, director='Christopher Nolan', rating=8.8)
+```
+
+Every `description` is sent to the model as part of the schema, so they are prompt text, not
+comments. The **field names are prompt text too** — `rating` is understood, a typo like `bugdet` is
+not, and the model is left guessing what was meant. Spell the schema the way it should be read.
+
+Under the hood this is tool calling: the model "calls" a function named after the schema, and
+LangChain validates the arguments back into the model class. §15 wrote these Pydantic models as
+plain validation; this is the payoff.
+
+### Getting the raw message too
+
+```python
+structure_model = model.with_structured_output(Movie, include_raw=True)
+res = structure_model.invoke("Provide Details about the movie inception")
+
+res["parsed"]          # Movie(...)
+res["raw"]             # the AIMessage, with token usage and the underlying tool call
+res["parsing_error"]   # None if it validated
+```
+
+`include_raw=True` changes the return type from the model instance to a **dict** — worth knowing
+before it breaks the line after it. It is also what makes parse failures recoverable: without it, a
+schema violation raises.
+
+### Nesting
+
+Schemas compose, so one call can fill in a whole object graph:
+
+```python
+class Actor(BaseModel):
+    name: str
+    role: str
+
+class MovieDetails(BaseModel):
+    title: str
+    year: int
+    cast: list[Actor]
+    genres: list[str]
+    budget: float | None = Field(None, description="Budget in millions USD")
+
+model.with_structured_output(MovieDetails).invoke("Provide Details about the movie inception")
+# MovieDetails(title='Inception', year=2010,
+#              cast=[Actor(name='Leonardo DiCaprio', role='Cobb'), ...],
+#              genres=['Science Fiction', 'Action', 'Thriller', 'Heist'], budget=None)
+```
+
+`budget=None` is the schema working as intended: the field is optional, the model did not know, so
+it left it out instead of inventing a number.
+
+### `TypedDict` — no runtime validation
+
+When a plain dict is enough and validation is not needed:
+
+```python
+from typing_extensions import TypedDict, Annotated
+
+class MovieDict(TypedDict):
+    title: Annotated[str, ..., "The title of the movie"]
+    year: Annotated[int, ..., "Year of release"]
+    director: Annotated[str, ..., "The director of the movie"]
+    rating: Annotated[float, ..., "Rating out of 10"]
+
+model.with_structured_output(MovieDict).invoke("Provide Details about the movie inception")
+# {'title': 'Inception', 'year': 2010, 'director': 'Christopher Nolan', 'rating': 8.8}
+```
+
+`Annotated[type, ..., "description"]` is how a `TypedDict` carries descriptions. A `TypedDict`
+**cannot take defaults**, so `budget: float | None = Field(None, description=...)` in the class body
+does nothing — the `Field` is ignored and only the annotation reaches the model.
+
+| Schema type | Returns | Validation | Descriptions via |
+| --- | --- | --- | --- |
+| Pydantic `BaseModel` | model instance | yes, at parse time | `Field(description=...)` |
+| `TypedDict` | plain `dict` | none | `Annotated[t, ..., "..."]` |
+| `@dataclass` | dataclass instance | none | docstring / comments |
+
+### Structured output from an agent
+
+An agent answers with a transcript, so the schema goes in as `response_format` and the parsed object
+comes out on its own key:
+
+```python
+from langchain.agents import create_agent
+
+class ContactInfo(BaseModel):
+    """Contact information for a person."""
+    name: str = Field(description="The name of the person")
+    email: str = Field(description="The email address of the person")
+    phone: str = Field(description="The phone number of the person")
+
+agent = create_agent(model="google_genai:gemini-2.5-flash", response_format=ContactInfo)
+
+result = agent.invoke({"messages": [
+    {"role": "user", "content": "Extract contact info from: John Doe, john@example.com, (555) 123-4567"}
+]})
+
+result["structured_response"]
+# ContactInfo(name='John Doe', email='john@example.com', phone='(555) 123-4567')
+```
+
+`result["messages"]` still holds the raw transcript; `result["structured_response"]` is the parsed
+object. An agent with no `tools` and a `response_format` is just an extractor — a perfectly good use
+of one.
+
+The same call takes a `TypedDict` (returns a dict) or a `@dataclass` (returns an instance), with the
+docstring and `#` comments standing in for `Field(description=...)`:
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class ContactInfo:
+    """Contact information for a person."""
+    name: str      # The name of the person
+    email: str     # The email address of the person
+    phone: str     # The phone number of the person
+```
+
+---
+
+## 33. Gotchas worth remembering
 
 Things that actually cost time during this work:
 
@@ -2744,20 +3198,60 @@ Things that actually cost time during this work:
     `similarity_search_with_score` returns a **distance** like FAISS (an exact match scores ~0,
     not ~1). Never compare scores across stores or across embedding models.
 
+25. **In v1, `res.content` is not always a string.** Gemini returns a list of content blocks —
+    `[{'type': 'text', 'text': '...', 'extras': {...}}]` — because one message can carry text,
+    reasoning and tool calls at once. Use **`res.text`** when all you want is the answer.
+
+26. **`GOOGLE_API_KEY` wins over `GEMINI_API_KEY`.** With both set, `langchain-google-genai` prints
+    `Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.` and quietly uses the
+    other one — which is a confusing five minutes if only one of them is valid.
+
+27. **`os.environ["X"] = os.getenv("X")` raises `TypeError` if the `.env` was not loaded.** Assigning
+    `None` to an environment variable is not allowed, so a forgotten `load_dotenv()` fails on the
+    assignment rather than later at the API call. `load_dotenv(find_dotenv())` searches parent
+    directories, which is what a notebook in a subfolder needs.
+
+28. **`create_agent` returns a `CompiledStateGraph`, not a chain.** It is a LangGraph object, so it
+    has no `|` composition — it takes a state dict (`{"messages": [...]}`) and returns one.
+
+29. **A tool call comes back with empty `content`.** `AIMessage(content='', tool_calls=[...])` is a
+    *request*, not an answer. Code that only prints `content` sees nothing and looks broken.
+
+30. **Pass the whole `tool_call` to `tool.invoke()`, not just its args.** `get_weather.invoke(tool_call)`
+    returns a `ToolMessage` stamped with the matching `tool_call_id`; `invoke(tool_call["args"])`
+    returns a bare string, and pairing the id by hand is where the loop breaks.
+
+31. **A `@tool` docstring is prompt text.** Name, type hints and docstring *are* the schema the model
+    chooses from. A vague docstring is a tool called at the wrong moment.
+
+32. **`TypedDict` cannot take defaults.** `budget: float | None = Field(None, description="...")` in a
+    `TypedDict` body is silently ignored — only the annotation reaches the model. Use
+    `Annotated[float | None, ..., "Budget in millions USD"]`, or switch to a Pydantic model.
+
+33. **`include_raw=True` changes the return type.** `with_structured_output(Movie)` returns a `Movie`;
+    with `include_raw=True` it returns `{"raw": ..., "parsed": ..., "parsing_error": ...}` instead.
+
+34. **v1 moved the import paths.** `langchain.messages`, `langchain.tools`, `langchain.chat_models`
+    replace the `langchain_core.*` equivalents, and `create_stuff_documents_chain` /
+    `create_retrieval_chain` now live in `langchain-classic`. Mixing v0 and v1 imports in one
+    environment is how the confusing errors start — which is why Part 3 has its own project.
+
 ---
 
 ## Where to go next
 
-- **Agents and tools** — letting the model choose which tool to call
-- **Structured output** — the Pydantic models from §15 as LLM response schemas
-- **Memory that survives a restart** — a persistent `BaseChatMessageHistory`, or LangGraph
-  checkpointers, instead of the in-memory dict from §25
+- **LangGraph proper** — `create_agent` compiles to a graph (§28); building one by hand is next.
+  It is also the successor to `RunnableWithMessageHistory`, and the way to express loops and
+  branches that LCEL's straight-line `|` cannot
+- **Multi-tool agents** — several tools, and the model picking between them rather than confirming
+  the only one available
+- **Porting Part 2 to v1** — the RAG chain of §26 rebuilt as an agent with the retriever as a tool
+- **Memory that survives a restart** — LangGraph checkpointers, or a persistent
+  `BaseChatMessageHistory`, instead of the in-memory dict from §25
 - **History + retrieval together** — the chatbot of §25 over the RAG chain of §26, with the
   follow-up question rewritten against the conversation before it hits the retriever
 - **Retrieval quality** — the `"mmr"` and `"similarity_score_threshold"` search types from §26 in
   anger, plus metadata filtering, hybrid search and re-ranking
 - **Persisting the vector store** — `persist_directory` so the corpus is embedded once, not once
   per kernel restart
-- **LangGraph** — the successor to `RunnableWithMessageHistory`, and the way to build loops and
-  branches that LCEL's straight-line `|` cannot express
 - **Evaluation** — LangSmith datasets and evaluators over the pipeline
