@@ -1,6 +1,6 @@
 # Agentic AI Learning
 
-Learning repo covering **Python fundamentals → advanced Python → data libraries → LangChain / RAG → LangChain v1 agents**.
+Learning repo covering **Python fundamentals → advanced Python → data libraries → LangChain / RAG → LangChain v1 agents → LangGraph**.
 
 📓 **[NOTES.md](NOTES.md)** — the full write-up of everything covered so far, with code snippets.
 
@@ -52,26 +52,34 @@ Agentic_AI_Learning/
 │   └── vectorrectriver/           Document objects, Chroma + HuggingFace embeddings,
 │                                  retrievers, a RAG chain built from raw runnables
 │
-└── Langchainupdated/               ── Part 3: LangChain v1 (separate uv project)
-    ├── pyproject.toml              dependencies; uv.lock pins them
-    ├── .python-version             3.11
+├── Langchainupdated/               ── Part 3: LangChain v1 (separate uv project)
+│   ├── pyproject.toml              dependencies; uv.lock pins them
+│   ├── .python-version             3.11
+│   ├── .env                        this project's own keys (git-ignored)
+│   └── updatedlangchain/
+│       ├── langchain.ipynb         create_agent - the model picks the tool
+│       ├── modelintegration.ipynb  init_chat_model, provider strings, stream, batch
+│       ├── mesaages.ipynb          message types, metadata, text vs message prompts
+│       ├── tools.ipynb             @tool, bind_tools, the tool-execution loop by hand
+│       ├── structuredOutput.ipynb  with_structured_output: Pydantic / TypedDict / dataclass
+│       └── middleware.ipynb        summarization + human-in-the-loop, checkpointers, threads
+│
+└── AgenticAIWorkSpace/             ── Part 4: LangGraph (separate venv)
+    ├── requirements.txt            langchain, langgraph, langchain-core, langchain-community
     ├── .env                        this project's own keys (git-ignored)
-    └── updatedlangchain/
-        ├── langchain.ipynb         create_agent - the model picks the tool
-        ├── modelintegration.ipynb  init_chat_model, provider strings, stream, batch
-        ├── mesaages.ipynb          message types, metadata, text vs message prompts
-        ├── tools.ipynb             @tool, bind_tools, the tool-execution loop by hand
-        └── structuredOutput.ipynb  with_structured_output: Pydantic / TypedDict / dataclass
+    └── Langgraph-basics/
+        └── simplegraph.ipynb       State, nodes, conditional edges, START/END, compile, invoke
 ```
 
-Notebooks in Parts 1 and 2 are numbered in the order they should be read. Part 3's are not —
-read them as `langchain` → `modelintegration` → `mesaages` → `tools` → `structuredOutput`.
+Notebooks in Parts 1 and 2 are numbered in the order they should be read. Part 3's are not — read
+them as `langchain` → `modelintegration` → `mesaages` → `tools` → `structuredOutput` →
+`middleware`.
 
 ---
 
 ## Setup
 
-Parts 1 and 2 share one `pip` environment; Part 3 is a separate `uv` project, because
+Parts 1 and 2 share one `pip` environment. Parts 3 and 4 each have their own, because
 LangChain 1.x and 0.x cannot sit in the same environment.
 
 ```bash
@@ -87,19 +95,26 @@ pip install -r 02-langchain/requirements.txt
 # 4. LangChain v1 track - uv builds .venv from pyproject.toml + uv.lock
 cd Langchainupdated
 uv sync
+
+# 5. LangGraph track
+cd AgenticAIWorkSpace
+python -m venv venv
+venv\Scripts\activate           # Git Bash: source venv/Scripts/activate
+pip install -r requirements.txt
 ```
 
 ### API keys
 
-The root `.env` holds every key for Parts 1 and 2. **Part 3 has its own `Langchainupdated/.env`**
-(`GEMINI_API_KEY`, `GROQ_API_KEY`) because it is a self-contained project. What each key unlocks:
+Each part reads the nearest `.env`: the root one for Parts 1 and 2, `Langchainupdated/.env` for
+Part 3, `AgenticAIWorkSpace/.env` for Part 4. They hold the same keys — the projects are
+self-contained, not differently configured. What each key unlocks:
 
 | Key | Used by |
 | --- | --- |
-| `GROQ_API_KEY` | `07-LCEL/`, `chat-bot/`, `vectorrectriver/`, `apps/langserver.py`, all of `Langchainupdated/` — hosted `ChatGroq` models |
+| `GROQ_API_KEY` | `07-LCEL/`, `chat-bot/`, `vectorrectriver/`, `apps/langserver.py`, `Langchainupdated/` — hosted `ChatGroq` models |
 | `GEMINI_API_KEY` | `01-getting-started/`, `Langchainupdated/` — Gemini chat models |
 | `HF_TOKEN` | `04-embeddings/`, `vectorrectriver/` — HuggingFace models |
-| `LANGSMITH_*` | tracing; optional, everything runs without it |
+| `LANGSMITH_*` / `LANGCHAIN_API_KEY` | tracing; optional, everything runs without it |
 
 Ollama needs no key — it runs locally.
 
@@ -134,10 +149,10 @@ python langserver.py                # http://127.0.0.1:8000
 
 - **Paths** — notebooks reach shared files as `../data/...`, so run them with the notebook's own
   folder as the working directory (which is what VS Code and Jupyter do by default).
-- **Secrets** — Parts 1 and 2 read the root `.env`; Part 3 reads `Langchainupdated/.env`.
-  `load_dotenv()` walks up the directory tree, so a notebook at any depth finds the nearest one
-  (`load_dotenv(find_dotenv())` makes that explicit). Both `.env` files are git-ignored;
-  `.env.example` is not.
+- **Secrets** — one `.env` per part: the root for Parts 1-2, `Langchainupdated/.env` for Part 3,
+  `AgenticAIWorkSpace/.env` for Part 4. `load_dotenv()` walks up the directory tree, so a notebook
+  at any depth finds the nearest one (`load_dotenv(find_dotenv())` makes that explicit). Every
+  `.env` is git-ignored; `.env.example` is not.
 - **Naming** — folders and files are `kebab-case` and numbered by reading order.
 
 ---
@@ -166,3 +181,7 @@ python langserver.py                # http://127.0.0.1:8000
   class, it does not vendor the SDK.
 - If both `GOOGLE_API_KEY` and `GEMINI_API_KEY` are set, `langchain-google-genai` uses
   `GOOGLE_API_KEY` and says so in a warning.
+- Agent middleware needs `checkpointer=InMemorySaver()` **and** a `thread_id` in the invoke config.
+  Without both, there is no state to summarise or to pause and resume.
+- `draw_mermaid_png()` renders through the remote Mermaid.INK API, so graph pictures need network
+  access. `get_graph().draw_ascii()` works offline.

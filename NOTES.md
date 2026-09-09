@@ -1,7 +1,7 @@
 # Agentic AI Learning — Notes
 
 Everything covered so far, in the order it was learned: **plain Python → advanced Python →
-data libraries → Pydantic → LangChain → RAG → LangChain v1 agents**. Every section links to the notebook it came
+data libraries → Pydantic → LangChain → RAG → LangChain v1 agents → LangGraph**. Every section links to the notebook it came
 from, so the notes and the runnable code stay in sync.
 
 ---
@@ -45,9 +45,13 @@ from, so the notes and the runnable code stay in sync.
 30. [Messages in v1](#30-messages-in-v1)
 31. [Tools and the tool-execution loop](#31-tools-and-the-tool-execution-loop)
 32. [Structured output](#32-structured-output)
+33. [Agent middleware](#33-agent-middleware)
+
+**Part 4 — LangGraph**
+34. [Building a graph from scratch](#34-building-a-graph-from-scratch)
 
 **Reference**
-33. [Gotchas worth remembering](#33-gotchas-worth-remembering)
+35. [Gotchas worth remembering](#35-gotchas-worth-remembering)
 
 ---
 
@@ -3110,7 +3114,330 @@ class ContactInfo:
 
 ---
 
-## 33. Gotchas worth remembering
+## 33. Agent middleware
+
+> Notebook: [middleware.ipynb](Langchainupdated/updatedlangchain/middleware.ipynb)
+
+`create_agent` (§28) hides the loop. **Middleware** is the supported way back in — hooks that run
+around each step without rewriting the agent:
+
+- tracking behaviour: logging, analytics, debugging
+- transforming prompts, tool selection, output formatting
+- retries, fallbacks, early termination
+- rate limits, guardrails, PII detection
+
+Middleware is passed as a list, and each entry wraps the whole agent loop:
+
+```python
+agent = create_agent(model=..., tools=[...], checkpointer=..., middleware=[...])
+```
+
+### The checkpointer is what makes turns connect
+
+Both middlewares below need memory across calls, and in v1 that is a **checkpointer** — the
+LangGraph replacement for §25's `RunnableWithMessageHistory`:
+
+```python
+from langgraph.checkpoint.memory import InMemorySaver
+
+agent = create_agent(model="groq:openai/gpt-oss-120b", checkpointer=InMemorySaver())
+
+config = {"configurable": {"thread_id": "test-1"}}
+agent.invoke({"messages": [HumanMessage(content="What is 2+2?")]}, config)
+```
+
+`thread_id` plays the part `session_id` played in §25: same id, same conversation. `InMemorySaver`
+keeps it in the process — swap in a persistent saver and the same code survives a restart.
+
+### `SummarizationMiddleware`
+
+Instead of dropping old turns the way `trim_messages` does (§25), summarization **compresses** them:
+when the transcript crosses a threshold, older messages are replaced by a model-written summary and
+the most recent ones are kept verbatim.
+
+```python
+from langchain.agents.middleware import SummarizationMiddleware
+
+agent = create_agent(
+    model="groq:openai/gpt-oss-120b",
+    checkpointer=InMemorySaver(),
+    middleware=[
+        SummarizationMiddleware(
+            model="groq:openai/gpt-oss-120b",   # the summariser - can be a cheaper model
+            trigger=("messages", 10),           # summarise once the transcript hits 10 messages
+            keep=("messages", 4),               # keep the last 4 verbatim
+        )
+    ],
+)
+```
+
+Watching `len(response["messages"])` over six questions shows it fire:
+
+```
+2  ->  4  ->  6  ->  8  ->  10  ->  6
+                                   ^ trigger hit: older turns collapsed into a summary
+```
+
+`trigger` and `keep` are `(unit, value)` tuples, and the unit can be counted three ways:
+
+| Unit | `trigger` means | Use when |
+| --- | --- | --- |
+| `("messages", 10)` | 10 messages in the transcript | turns are roughly uniform in size |
+| `("tokens", 550)` | 550 tokens of context | messages vary wildly — tool output especially |
+| `("fraction", 0.005)` | 0.5% of the model's context window | the threshold should follow the model, not a constant |
+
+`fraction` is the portable one: the same `0.8` means something sensible on a 8k model and on a 128k
+model. The tiny values above (`0.005` / `0.002`) are there to make it trigger on a short test —
+production numbers look more like `trigger=0.8, keep=0.3`.
+
+A tool-calling agent hits these limits fast, because tool output lands in the transcript too:
+
+```python
+@tool
+def search_hotels(city: str) -> str:
+    """Search hotels - returns long response to use more tokens."""
+    return f"Hotels in {city}: Grand Hotel $350, City Inn $180, Budget Stay $75"
+
+agent = create_agent(
+    model="groq:openai/gpt-oss-20b",
+    tools=[search_hotels],
+    checkpointer=InMemorySaver(),
+    middleware=[SummarizationMiddleware(
+        model="groq:openai/gpt-oss-20b", trigger=("tokens", 550), keep=("tokens", 200),
+    )],
+)
+```
+
+Across six cities the transcript holds at ~5 messages instead of growing to ~25 — the middleware is
+summarising on nearly every turn.
+
+Two things worth being clear about: the hand-rolled `count_tokens` in the notebook
+(`len(str(m.content)) // 4`) is a rough character heuristic and is **not** the counter the
+middleware uses, so the printed numbers only track the trend; and summarisation costs an extra
+model call each time it fires, which is why the trigger should not be set this low for real work.
+
+### `HumanInTheLoopMiddleware`
+
+Some tool calls should not fire unattended — database writes, payments, anything outbound. This
+middleware **pauses the graph** before the call and waits for a decision.
+
+```python
+from langchain.agents.middleware import HumanInTheLoopMiddleware
+
+agent = create_agent(
+    model="groq:openai/gpt-oss-20b",
+    tools=[read_email_tool, send_email_tool],
+    checkpointer=InMemorySaver(),                # required - the pause is persisted state
+    middleware=[
+        HumanInTheLoopMiddleware(
+            interrupt_on={
+                "send_email_tool": {"allowed_decisions": ["approve", "edit", "reject"]},
+                "read_email_tool": False,        # reads run unattended
+            }
+        )
+    ],
+)
+```
+
+Per-tool config is the whole design: reading is harmless, sending is not.
+
+**Step 1 — the agent pauses.** `invoke` returns early, with an `__interrupt__` key alongside the
+messages:
+
+```python
+result = agent.invoke({"messages": [HumanMessage(content="Send email to john@test.com ...")]}, config)
+
+"__interrupt__" in result
+# Interrupt(value={'action_requests': [{'name': 'send_email_tool',
+#                                       'args': {...},
+#                                       'description': 'Tool execution requires approval...'}],
+#                  'review_configs': [{'action_name': 'send_email_tool',
+#                                      'allowed_decisions': ['approve', 'edit', 'reject']}]}, ...)
+```
+
+The pending call is in `action_requests` — name and args, exactly what is about to run. Nothing has
+executed yet.
+
+**Step 2 — resume with a decision.** The second `invoke` sends a `Command` instead of new messages,
+on the *same* `thread_id`:
+
+```python
+from langgraph.types import Command
+
+result = agent.invoke(Command(resume={"decisions": [{"type": "approve"}]}), config=config)
+result["messages"][-1].content
+# '✅ Email sent to john@test.com with subject "Hello" and body "How are you?"'
+```
+
+`decisions` is a list because one turn can queue several tool calls. The three types:
+
+| Decision | Effect |
+| --- | --- |
+| `{"type": "approve"}` | run the tool as the model asked |
+| `{"type": "edit", "edited_action": {"name": ..., "args": {...}}}` | run it with corrected arguments |
+| `{"type": "reject"}` | refuse; the model is told and continues without the result |
+
+Editing is the interesting one — a human fixes the arguments before anything happens:
+
+```python
+result = agent.invoke(
+    Command(resume={"decisions": [{
+        "type": "edit",
+        "edited_action": {
+            "name": "send_email_tool",
+            "args": {
+                "recipient": "correct@email.com",
+                "subject": "Corrected Subject",
+                "body": "This was edited by human before sending",
+            },
+        },
+    }]}),
+    config=config,
+)
+```
+
+```
+invoke -> model -> tool call -> [PAUSE] -> Command(resume=...) -> tool runs -> model -> answer
+                                  ^                                    |
+                                  +---- pauses again on the next -----+
+                                        guarded tool call
+```
+
+That last arrow is not hypothetical: in the edit run the agent called `send_email_tool` a second
+time (the user's original message still named the wrong address), so the result came back **paused
+again**, with `__interrupt__` present and `result["messages"][-1].content` empty — which is why the
+printed line was blank. One resume approves one call, not the session.
+
+---
+
+# Part 4 — LangGraph
+
+## 34. Building a graph from scratch
+
+> Notebook: [simplegraph.ipynb](AgenticAIWorkSpace/Langgraph-basics/simplegraph.ipynb)
+> · Project: [AgenticAIWorkSpace/](AgenticAIWorkSpace/) — plain `venv` + `requirements.txt`
+
+§28 noted that `create_agent` returns a `CompiledStateGraph` without saying what one *is*. This is
+that, from the bottom: a graph is **state**, **nodes** that update it, and **edges** that decide
+what runs next.
+
+```bash
+cd AgenticAIWorkSpace
+python -m venv venv && venv\Scripts\activate     # or: source venv/Scripts/activate
+pip install -r requirements.txt                  # langchain, langgraph, langchain-core, langchain-community
+```
+
+### State — the schema everything shares
+
+The state is one `TypedDict`, and it is the input schema for every node and edge in the graph:
+
+```python
+from typing_extensions import TypedDict
+
+class State(TypedDict):
+    graph_info: str
+```
+
+### Nodes — plain Python functions
+
+A node takes the state as its first positional argument and returns **the keys it wants to change**,
+not the whole state:
+
+```python
+def start_play(state: State):
+    print("Start_Play node has been called")
+    return {"graph_info": state["graph_info"] + " I am planning to play"}
+
+def cricket(state: State):
+    return {"graph_info": state["graph_info"] + " Cricket"}
+
+def badminton(state: State):
+    return {"graph_info": state["graph_info"] + " Badminton"}
+```
+
+There is no LLM here on purpose — a node is just a function, and a graph of functions is easier to
+reason about than a graph of model calls. By default a returned key **overwrites** the old value;
+the `+` above is doing the appending by hand. (Making a key accumulate automatically is a
+*reducer*, e.g. `Annotated[list, add_messages]` — which is exactly how the `messages` key in every
+agent graph collects a transcript instead of replacing it.)
+
+### Conditional edges — a router that returns a node name
+
+A routing function also takes the state, but returns **the name of the next node** as a string. The
+`Literal` return type is what tells LangGraph which targets are possible, so it can draw and
+validate them:
+
+```python
+import random
+from typing import Literal
+
+def random_play(state: State) -> Literal["cricket", "badminton"]:
+    if random.random() > 0.5:
+        return "cricket"
+    else:
+        return "badminton"
+```
+
+### Construction and compilation
+
+```python
+from langgraph.graph import StateGraph, START, END
+
+graph = StateGraph(State)
+
+graph.add_node("start_play", start_play)
+graph.add_node("cricket", cricket)
+graph.add_node("badminton", badminton)
+
+graph.add_edge(START, "start_play")                    # where input enters
+graph.add_conditional_edges("start_play", random_play) # branch on the router's return
+graph.add_edge("cricket", END)
+graph.add_edge("badminton", END)
+
+graph_builder = graph.compile()
+```
+
+`START` and `END` are special nodes: `START` is where the user input is handed in, `END` is a
+terminal. `compile()` runs structural checks — unreachable nodes, edges to names that do not exist
+— and returns the runnable `CompiledStateGraph`.
+
+```
+          START
+            |
+        start_play
+            |
+      random_play (conditional)
+        /         \
+   cricket      badminton
+        \         /
+           END
+```
+
+`compile()` also gives you the picture for free:
+
+```python
+from IPython.display import Image, display
+
+display(Image(graph_builder.get_graph().draw_mermaid_png()))
+```
+
+### Invocation
+
+```python
+graph_builder.invoke({"graph_info": "Hey My name is shaurya"})
+# Start_Play node has been called
+# My badminton node has been called
+# {'graph_info': 'Hey My name is shaurya I am planning to play Badminton'}
+```
+
+The input is the initial state, and the return is the **final state** — not a message, not an
+answer. Every node that ran folded its update into it on the way through, and the branch taken was
+decided at runtime by `random_play`. Swap that coin flip for an LLM deciding which tool to call and
+you have rebuilt §28's agent.
+
+---
+
+## 35. Gotchas worth remembering
 
 Things that actually cost time during this work:
 
@@ -3236,18 +3563,51 @@ Things that actually cost time during this work:
     `create_retrieval_chain` now live in `langchain-classic`. Mixing v0 and v1 imports in one
     environment is how the confusing errors start — which is why Part 3 has its own project.
 
+35. **Middleware needs a checkpointer and a `thread_id`.** Summarization and human-in-the-loop are
+    both state that has to survive between `invoke` calls. No `checkpointer=InMemorySaver()`, or no
+    `config={"configurable": {"thread_id": ...}}`, and there is nothing to summarise or resume.
+
+36. **One resume approves one tool call, not the session.** After `Command(resume=...)` the agent
+    keeps going and pauses again on the next guarded call — the result comes back with
+    `__interrupt__` present and `messages[-1].content` empty, because the last message is a tool
+    request, not an answer. Loop on `while "__interrupt__" in result`, don't check it once.
+
+37. **A resumed result has no `__interrupt__` left.** Re-running an `if "__interrupt__" in result:`
+    block after a successful resume silently does nothing — which is why the reject cell in
+    `middleware.ipynb` printed nothing at all. Start a fresh request before testing the next
+    decision type.
+
+38. **Summarisation costs an extra model call every time it fires.** A trigger tuned low enough to
+    demo (`("fraction", 0.005)`) would be pathological in production; `trigger=0.8, keep=0.3` is the
+    shape of a real setting. And the notebook's `len(str(m.content)) // 4` token counter is a
+    character heuristic, not the counter the middleware actually uses.
+
+39. **A LangGraph node returns a partial state, and the key is overwritten.** Returning
+    `{"graph_info": "..."}` replaces the old value — appending is only automatic when the key has a
+    reducer (`Annotated[list, add_messages]`).
+
+40. **A conditional-edge function returns the next node's *name*, not state.** It is a router:
+    `-> Literal["cricket", "badminton"]` is what tells LangGraph the possible targets so it can
+    validate and draw them.
+
+41. **`draw_mermaid_png()` calls a remote renderer.** It posts the diagram to the Mermaid.INK API,
+    so it needs network access and fails offline — `get_graph().draw_ascii()` or `draw_mermaid()`
+    (which returns the diagram source) work locally.
+
 ---
 
 ## Where to go next
 
-- **LangGraph proper** — `create_agent` compiles to a graph (§28); building one by hand is next.
-  It is also the successor to `RunnableWithMessageHistory`, and the way to express loops and
-  branches that LCEL's straight-line `|` cannot
+- **Graphs with an LLM in them** — §34's nodes are plain functions; the next step is a node that
+  calls a model, a `messages` key with the `add_messages` reducer, and a cycle back to the model
+  after a tool runs
 - **Multi-tool agents** — several tools, and the model picking between them rather than confirming
   the only one available
 - **Porting Part 2 to v1** — the RAG chain of §26 rebuilt as an agent with the retriever as a tool
-- **Memory that survives a restart** — LangGraph checkpointers, or a persistent
-  `BaseChatMessageHistory`, instead of the in-memory dict from §25
+- **Memory that survives a restart** — a persistent checkpointer (SQLite, Postgres) in place of
+  §33's `InMemorySaver`
+- **Writing custom middleware** — §33 used the two built-ins; the hooks are open for guardrails,
+  retries and logging of your own
 - **History + retrieval together** — the chatbot of §25 over the RAG chain of §26, with the
   follow-up question rewritten against the conversation before it hits the retriever
 - **Retrieval quality** — the `"mmr"` and `"similarity_score_threshold"` search types from §26 in
