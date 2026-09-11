@@ -65,15 +65,18 @@ Agentic_AI_Learning/
 │       └── middleware.ipynb        summarization + human-in-the-loop, checkpointers, threads
 │
 └── AgenticAIWorkSpace/             ── Part 4: LangGraph (separate venv)
-    ├── requirements.txt            langchain, langgraph, langchain-core, langchain-community
+    ├── requirements.txt            langgraph, langchain(-core/-community), langchain-groq,
+    │                               python-dotenv
     ├── .env                        this project's own keys (git-ignored)
     └── Langgraph-basics/
-        └── simplegraph.ipynb       State, nodes, conditional edges, START/END, compile, invoke
+        ├── simplegraph.ipynb           State, nodes, conditional edges, START/END, compile
+        ├── DataClassStateSchema.ipynb  TypedDict vs dataclass state; neither validates
+        └── simplechatbot.ipynb         LLM node, add_messages reducer, graph streaming
 ```
 
-Notebooks in Parts 1 and 2 are numbered in the order they should be read. Part 3's are not — read
-them as `langchain` → `modelintegration` → `mesaages` → `tools` → `structuredOutput` →
-`middleware`.
+Notebooks in Parts 1 and 2 are numbered in the order they should be read. Parts 3 and 4 are not —
+read Part 3 as `langchain` → `modelintegration` → `mesaages` → `tools` → `structuredOutput` →
+`middleware`, and Part 4 as `simplegraph` → `DataClassStateSchema` → `simplechatbot`.
 
 ---
 
@@ -111,7 +114,7 @@ self-contained, not differently configured. What each key unlocks:
 
 | Key | Used by |
 | --- | --- |
-| `GROQ_API_KEY` | `07-LCEL/`, `chat-bot/`, `vectorrectriver/`, `apps/langserver.py`, `Langchainupdated/` — hosted `ChatGroq` models |
+| `GROQ_API_KEY` | `07-LCEL/`, `chat-bot/`, `vectorrectriver/`, `apps/langserver.py`, `Langchainupdated/`, `AgenticAIWorkSpace/` — hosted `ChatGroq` models |
 | `GEMINI_API_KEY` | `01-getting-started/`, `Langchainupdated/` — Gemini chat models |
 | `HF_TOKEN` | `04-embeddings/`, `vectorrectriver/` — HuggingFace models |
 | `LANGSMITH_*` / `LANGCHAIN_API_KEY` | tracing; optional, everything runs without it |
@@ -153,6 +156,9 @@ python langserver.py                # http://127.0.0.1:8000
   `AgenticAIWorkSpace/.env` for Part 4. `load_dotenv()` walks up the directory tree, so a notebook
   at any depth finds the nearest one (`load_dotenv(find_dotenv())` makes that explicit). Every
   `.env` is git-ignored; `.env.example` is not.
+  **Caveat:** VS Code also injects the *workspace-root* `.env` into every kernel it starts, so a
+  notebook that never calls `load_dotenv()` still works in VS Code — using the root keys — and
+  fails in plain Jupyter. Always call `load_dotenv()`.
 - **Naming** — folders and files are `kebab-case` and numbered by reading order.
 
 ---

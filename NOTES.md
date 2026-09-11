@@ -49,9 +49,11 @@ from, so the notes and the runnable code stay in sync.
 
 **Part 4 — LangGraph**
 34. [Building a graph from scratch](#34-building-a-graph-from-scratch)
+35. [State schemas: `TypedDict` vs dataclass](#35-state-schemas-typeddict-vs-dataclass)
+36. [A chatbot graph: the `add_messages` reducer and streaming](#36-a-chatbot-graph-the-add_messages-reducer-and-streaming)
 
 **Reference**
-35. [Gotchas worth remembering](#35-gotchas-worth-remembering)
+37. [Gotchas worth remembering](#37-gotchas-worth-remembering)
 
 ---
 
@@ -3437,7 +3439,183 @@ you have rebuilt §28's agent.
 
 ---
 
-## 35. Gotchas worth remembering
+## 35. State schemas: `TypedDict` vs dataclass
+
+> Notebook: [DataClassStateSchema.ipynb](AgenticAIWorkSpace/Langgraph-basics/DataClassStateSchema.ipynb)
+
+The state schema is the contract every node reads and writes. §34 used a `TypedDict`; LangGraph
+accepts other shapes too, and the difference is mostly about **how nodes read state** and **what
+gets checked**.
+
+### `TypedDict` — hints, not enforcement
+
+```python
+from typing import Literal
+from typing_extensions import TypedDict
+
+class TypedDictState(TypedDict):
+    name: str
+    game: Literal["cricket", "badminton"]
+```
+
+Nodes read it with subscripts and return a dict of the keys they change:
+
+```python
+def play_game(state: TypedDictState):
+    return {"name": state["name"] + " want to play "}
+
+def cricket(state: TypedDictState):
+    return {"name": state["name"] + " cricket", "game": "cricket"}
+```
+
+The graph wiring is identical to §34 (`playgame` → conditional edge → `cricket` | `badminton` →
+`END`). Invoking with only some of the keys is fine — `game` is filled in by whichever branch runs:
+
+```python
+graph.invoke({"name": "Shaurya"})
+# {'name': 'Shaurya want to play  cricket', 'game': 'cricket'}
+```
+
+Those type hints are for mypy and the IDE. **Nothing checks them at runtime** — a node could
+return `{"game": "football"}` and the graph would carry it along without complaint.
+
+### Dataclass — attribute access, required fields
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class DataClassState:
+    name: str
+    game: Literal["badminton", "cricket"]
+```
+
+The one change inside the nodes is **how state is read** — attributes instead of keys. What they
+*return* does not change: still a plain dict of updates.
+
+```python
+def play_game(state: DataClassState):
+    return {"name": state.name + " want to play "}      # state.name, not state["name"]
+```
+
+The input is now an instance, so every field without a default has to be supplied up front:
+
+```python
+graph.invoke(DataClassState(name="Shaurya", game="cricket"))
+# {'name': 'Shaurya want to play  cricket', 'game': 'cricket'}
+
+graph.invoke(DataClassState(name="Shaurya", game="cricket"))
+# {'name': 'Shaurya want to play  badminton', 'game': 'badminton'}
+```
+
+Two things that output shows. The result comes back as a **dict**, not a `DataClassState` — the
+schema shapes what nodes see, not what `invoke` returns. And the second call passed
+`game="cricket"` and got badminton: `decide_play` flips a coin and never reads `state.game`, so the
+input value was simply overwritten by the branch that ran. A field in the schema is not a field
+anything uses.
+
+| Schema | Nodes read | Missing input keys | Runtime validation |
+| --- | --- | --- | --- |
+| `TypedDict` | `state["name"]` | allowed | none |
+| `@dataclass` | `state.name` | error at construction, unless defaulted | none |
+| Pydantic `BaseModel` | `state.name` | error, unless defaulted | **yes** — the one that actually enforces types |
+
+Neither of the first two validates. That is the gap Pydantic state closes — the same `BaseModel`
+from §15 and §32, now used as a graph schema.
+
+---
+
+## 36. A chatbot graph: the `add_messages` reducer and streaming
+
+> Notebook: [simplechatbot.ipynb](AgenticAIWorkSpace/Langgraph-basics/simplechatbot.ipynb)
+
+§34's nodes were plain functions. This is the first graph with a model in it — and the first
+state key that **accumulates** instead of being overwritten.
+
+### The reducer
+
+```python
+from typing import Annotated
+from typing_extensions import TypedDict
+from langgraph.graph.message import add_messages
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+```
+
+`Annotated[type, reducer]` attaches a function that decides **how a node's update merges into the
+existing value**. Without one (§34, §35) the new value replaces the old. With `add_messages`, a
+returned message is *appended* — and a returned message whose `id` already exists replaces that
+one in place, which is how edits work.
+
+This is the same `messages` channel `create_agent` used in §28. The reducer is the reason
+`res["messages"]` came back as a whole transcript rather than just the last reply.
+
+### The node
+
+```python
+from langchain_groq import ChatGroq
+
+llm = ChatGroq(model="openai/gpt-oss-120b")
+
+def superbot(state: State):
+    return {"messages": llm.invoke(state["messages"])}
+```
+
+The node returns a **single** `AIMessage`, not a list and not the transcript plus the reply. It
+only has to hand back the new part; the reducer does the appending.
+
+```python
+graph = StateGraph(State)
+graph.add_node("superbot", superbot)
+graph.add_edge(START, "superbot")
+graph.add_edge("superbot", END)
+graph_builder = graph.compile()
+```
+
+```
+START  ->  superbot (llm.invoke)  ->  END
+```
+
+### Invoking it
+
+```python
+graph_builder.invoke({"messages": "Hello what can you help me with"})
+# {'messages': [HumanMessage(content='Hello what can you help me with', ...),
+#               AIMessage(content="Hello! I'm ChatGPT, an AI language model here to help...", ...)]}
+```
+
+A bare string was passed, and it came back as a `HumanMessage` — `add_messages` coerces strings,
+`("user", "...")` tuples and `{"role", "content"}` dicts into message objects on the way in.
+
+There is no checkpointer, so each `invoke` is a **new conversation** — the graph has the machinery
+for a transcript but nothing keeping it between calls. §33's `checkpointer=InMemorySaver()` plus a
+`thread_id` is the missing piece, and it goes into `graph.compile(checkpointer=...)` here.
+
+### Streaming — node by node
+
+```python
+for event in graph_builder.stream({"messages": "Hello what can you help me with"}):
+    print(event)
+# {'superbot': {'messages': AIMessage(content="Hello! I'm here to help with...", ...)}}
+```
+
+`stream` on a graph yields **one event per node that finishes**, keyed by the node's name, holding
+the *update* that node returned — not the full state, and not tokens. With one node that is one
+event; in a multi-node graph it is the execution trace, as it happens.
+
+| `stream_mode` | Each event is |
+| --- | --- |
+| `"updates"` (default) | `{node_name: what_that_node_returned}` |
+| `"values"` | the full state after each step |
+| `"messages"` | `(token_chunk, metadata)` — LLM output token by token |
+
+For a typing-effect chat UI, `stream_mode="messages"` is the one to use; `"updates"` is for seeing
+what the graph did.
+
+---
+
+## 37. Gotchas worth remembering
 
 Things that actually cost time during this work:
 
@@ -3594,13 +3772,46 @@ Things that actually cost time during this work:
     so it needs network access and fails offline — `get_graph().draw_ascii()` or `draw_mermaid()`
     (which returns the diagram source) work locally.
 
+42. **`TypedDict` and dataclass state are not validated.** `game: Literal["cricket", "badminton"]`
+    will not stop a node returning `"football"`. Only a Pydantic `BaseModel` state checks types at
+    runtime.
+
+43. **Dataclass state changes how nodes *read*, not what they *return*.** Read with `state.name`,
+    still return a dict of updates — and `invoke` still hands back a plain dict, not an instance of
+    the dataclass.
+
+44. **A state field nothing reads is silently overwritten.** `DataClassState(game="cricket")` came
+    back as badminton because the router flips a coin and never looks at `state.game`. Being in the
+    schema does not mean anything uses it.
+
+45. **`add_messages` appends — so return only the new message.** A node returning
+    `{"messages": llm.invoke(...)}` is right; returning `state["messages"] + [reply]` would append
+    the whole transcript to itself. The reducer also coerces a bare string into a `HumanMessage`.
+
+46. **Graph `stream()` yields node updates, not tokens.** The default `stream_mode="updates"` gives
+    `{node_name: update}` once per finished node. Token-by-token output is
+    `stream_mode="messages"`.
+
+47. **A compiled graph has no memory unless it is compiled with a checkpointer.** §36's chatbot
+    forgets everything between `invoke`s. `graph.compile(checkpointer=InMemorySaver())` plus a
+    `thread_id` in the config is what makes it a conversation.
+
+48. **VS Code quietly loads the workspace-root `.env` into the kernel.** The Python extension's
+    default `python.envFile` is `${workspaceFolder}/.env`, which is why `simplechatbot.ipynb` finds
+    `GROQ_API_KEY` without ever calling `load_dotenv()`. It is the *root* `.env`, not
+    `AgenticAIWorkSpace/.env` — and the same notebook fails in plain Jupyter with gotcha 27's
+    `TypeError`. Call `load_dotenv()` explicitly.
+
 ---
 
 ## Where to go next
 
-- **Graphs with an LLM in them** — §34's nodes are plain functions; the next step is a node that
-  calls a model, a `messages` key with the `add_messages` reducer, and a cycle back to the model
-  after a tool runs
+- **Tools inside a graph** — §36's graph calls the model once and stops. Next is `ToolNode`,
+  `tools_condition`, and the edge that cycles back to the model after a tool runs — which is §28's
+  agent, built by hand
+- **Pydantic state** — the one schema type that validates at runtime, closing the gap §35 found
+- **A chatbot that remembers** — §36's graph compiled with a checkpointer and invoked with a
+  `thread_id`, streamed with `stream_mode="messages"`
 - **Multi-tool agents** — several tools, and the model picking between them rather than confirming
   the only one available
 - **Porting Part 2 to v1** — the RAG chain of §26 rebuilt as an agent with the retriever as a tool
