@@ -1,6 +1,6 @@
 # Agentic AI Learning
 
-Learning repo covering **Python fundamentals → advanced Python → data libraries → LangChain / RAG → LangChain v1 agents → LangGraph**.
+Learning repo covering **Python fundamentals → advanced Python → data libraries → LangChain / RAG → LangChain v1 agents → LangGraph → agent workflow patterns**.
 
 📓 **[NOTES.md](NOTES.md)** — the full write-up of everything covered so far, with code snippets.
 
@@ -64,19 +64,40 @@ Agentic_AI_Learning/
 │       ├── structuredOutput.ipynb  with_structured_output: Pydantic / TypedDict / dataclass
 │       └── middleware.ipynb        summarization + human-in-the-loop, checkpointers, threads
 │
-└── AgenticAIWorkSpace/             ── Part 4: LangGraph (separate venv)
-    ├── requirements.txt            langgraph, langchain(-core/-community), langchain-groq,
-    │                               python-dotenv
-    ├── .env                        this project's own keys (git-ignored)
-    └── Langgraph-basics/
-        ├── simplegraph.ipynb           State, nodes, conditional edges, START/END, compile
-        ├── DataClassStateSchema.ipynb  TypedDict vs dataclass state; neither validates
-        └── simplechatbot.ipynb         LLM node, add_messages reducer, graph streaming
+├── AgenticAIWorkSpace/             ── Part 4: LangGraph (separate venv)
+│   ├── requirements.txt            langgraph, langgraph-cli[inmem], langchain(-core/-community),
+│   │                               langchain-groq, python-dotenv
+│   ├── .env                        this project's own keys (git-ignored)
+│   └── Langgraph-basics/
+│       ├── simplegraph.ipynb            State, nodes, conditional edges, START/END, compile
+│       ├── DataClassStateSchema.ipynb   TypedDict vs dataclass state; neither validates
+│       ├── pydantic.ipynb               Pydantic state - the schema that does validate
+│       ├── simplechatbot.ipynb          LLM node, add_messages, MemorySaver, astream_events
+│       ├── ChainsLangGraph.ipynb        messages as state, ToolNode, tools_condition
+│       ├── chatbotwithmultipletools.ipynb  Arxiv + Wikipedia + Tavily as tools
+│       ├── reActAgent.ipynb             the tools -> llm loop, multi-step tool use, memory
+│       └── Debugging/                   LangGraph Studio: langgraph.json + groq_agent.py
+│
+├── HumanIntheLoop/                 ── interrupts, get_state, update_state, resuming
+│   └── Humanintheloop.ipynb
+│
+└── Workflows/                      ── Part 5: agent workflow patterns
+    ├── prompt-chaining.ipynb       fixed sequence, one state key per step, a gate on the edge
+    ├── parrelization.ipynb         fan out from START, join in one node
+    ├── routing.ipynb               structured-output classifier picks the branch
+    ├── orchestrator.ipynb          planner + Send() workers + synthesizer
+    └── Evaluator-optimizer.ipynb   generate/grade loop until the grade passes
 ```
 
-Notebooks in Parts 1 and 2 are numbered in the order they should be read. Parts 3 and 4 are not —
-read Part 3 as `langchain` → `modelintegration` → `mesaages` → `tools` → `structuredOutput` →
-`middleware`, and Part 4 as `simplegraph` → `DataClassStateSchema` → `simplechatbot`.
+Notebooks in Parts 1 and 2 are numbered in the order they should be read. Parts 3-5 are not:
+
+- **Part 3** — `langchain` → `modelintegration` → `mesaages` → `tools` → `structuredOutput` →
+  `middleware`
+- **Part 4** — `simplegraph` → `DataClassStateSchema` → `pydantic` → `simplechatbot` →
+  `ChainsLangGraph` → `chatbotwithmultipletools` → `reActAgent` → `Debugging/` →
+  `HumanIntheLoop/`
+- **Part 5** — `prompt-chaining` → `parrelization` → `routing` → `orchestrator` →
+  `Evaluator-optimizer` (independent of each other; read in any order)
 
 ---
 
@@ -117,9 +138,12 @@ self-contained, not differently configured. What each key unlocks:
 | `GROQ_API_KEY` | `07-LCEL/`, `chat-bot/`, `vectorrectriver/`, `apps/langserver.py`, `Langchainupdated/`, `AgenticAIWorkSpace/` — hosted `ChatGroq` models |
 | `GEMINI_API_KEY` | `01-getting-started/`, `Langchainupdated/` — Gemini chat models |
 | `HF_TOKEN` | `04-embeddings/`, `vectorrectriver/` — HuggingFace models |
+| `TAVILY_API_KEY` | `chatbotwithmultipletools`, `reActAgent` — `TavilySearch` web search tool |
 | `LANGSMITH_*` / `LANGCHAIN_API_KEY` | tracing; optional, everything runs without it |
 
-Ollama needs no key — it runs locally.
+Ollama needs no key — it runs locally. Arxiv and Wikipedia need no key either; Tavily does
+(free tier at <https://tavily.com>). For LangSmith tracing, `reActAgent` also sets
+`LANGCHAIN_TRACING_V2="true"` and `LANGCHAIN_PROJECT` in the notebook itself.
 
 ### Running the Streamlit app
 
@@ -145,6 +169,20 @@ python langserver.py                # http://127.0.0.1:8000
 - `POST /chain/invoke` — `{"input": {"language": "Japanese", "text": "Hello"}}`
 - `/chain/playground/` — built-in UI
 - `/docs` — FastAPI's Swagger UI
+
+### Running LangGraph Studio
+
+`Debugging/` is a LangGraph Studio project: `langgraph.json` points at a compiled graph
+(`./groq_agent.py:agent`) and at `../.env` for keys.
+
+```bash
+cd AgenticAIWorkSpace/Langgraph-basics/Debugging
+langgraph dev                       # langgraph-cli[inmem] is in requirements.txt
+```
+
+It opens Studio in the browser, where the graph can be run step by step, its state inspected at
+each node, and a thread rewound and replayed. The server writes a local `.langgraph_api/` folder of
+pickled checkpoints — scratch state, safe to delete.
 
 ---
 
@@ -191,3 +229,9 @@ python langserver.py                # http://127.0.0.1:8000
   Without both, there is no state to summarise or to pause and resume.
 - `draw_mermaid_png()` renders through the remote Mermaid.INK API, so graph pictures need network
   access. `get_graph().draw_ascii()` works offline.
+- `langgraph.json` resolves `path.py:name`, and `name` must be an **already compiled** graph at
+  module level — a factory function will not be picked up.
+- Arxiv rate-limits: repeated `ArxivQueryRun` calls return HTTP 429. Both it and the Wikipedia
+  wrapper take `doc_content_chars_max` — cap it, since every returned character stays in the
+  transcript.
+- `.langgraph_api/` (LangGraph Studio's local checkpoint pickles) is generated state, not source.

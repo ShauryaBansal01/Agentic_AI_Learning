@@ -1,7 +1,8 @@
 # Agentic AI Learning — Notes
 
 Everything covered so far, in the order it was learned: **plain Python → advanced Python →
-data libraries → Pydantic → LangChain → RAG → LangChain v1 agents → LangGraph**. Every section links to the notebook it came
+data libraries → Pydantic → LangChain → RAG → LangChain v1 agents → LangGraph →
+agent workflow patterns**. Every section links to the notebook it came
 from, so the notes and the runnable code stay in sync.
 
 ---
@@ -51,9 +52,20 @@ from, so the notes and the runnable code stay in sync.
 34. [Building a graph from scratch](#34-building-a-graph-from-scratch)
 35. [State schemas: `TypedDict` vs dataclass](#35-state-schemas-typeddict-vs-dataclass)
 36. [A chatbot graph: the `add_messages` reducer and streaming](#36-a-chatbot-graph-the-add_messages-reducer-and-streaming)
+37. [Tools in a graph: `ToolNode` and `tools_condition`](#37-tools-in-a-graph-toolnode-and-tools_condition)
+38. [The ReAct loop and agent memory](#38-the-react-loop-and-agent-memory)
+39. [Human-in-the-loop: interrupts and editing state](#39-human-in-the-loop-interrupts-and-editing-state)
+40. [Running a graph in LangGraph Studio](#40-running-a-graph-in-langgraph-studio)
+
+**Part 5 — Agent workflow patterns**
+41. [Prompt chaining](#41-prompt-chaining)
+42. [Parallelization](#42-parallelization)
+43. [Routing](#43-routing)
+44. [Orchestrator-workers and the `Send` API](#44-orchestrator-workers-and-the-send-api)
+45. [Evaluator-optimizer](#45-evaluator-optimizer)
 
 **Reference**
-37. [Gotchas worth remembering](#37-gotchas-worth-remembering)
+46. [Gotchas worth remembering](#46-gotchas-worth-remembering)
 
 ---
 
@@ -3523,6 +3535,43 @@ anything uses.
 Neither of the first two validates. That is the gap Pydantic state closes — the same `BaseModel`
 from §15 and §32, now used as a graph schema.
 
+### Pydantic — the schema that actually enforces
+
+> Notebook: [pydantic.ipynb](AgenticAIWorkSpace/Langgraph-basics/pydantic.ipynb)
+
+Same graph, same nodes, one import changed:
+
+```python
+from pydantic import BaseModel
+
+class State(BaseModel):
+    name: str
+
+def example_node(state: State):
+    return {"name": "hello"}
+
+builder = StateGraph(State)
+builder.add_node(example_node)          # no name given - the function's name is used
+builder.add_edge(START, "example_node")
+builder.add_edge("example_node", END)
+graph = builder.compile()
+
+graph.invoke({"name": "Shaurya"})       # {'name': 'hello'}
+```
+
+Now a bad value is caught instead of carried:
+
+```python
+graph.invoke({"name": 123})
+# ValidationError: 1 validation error for State
+# name
+#   Input should be a valid string [type=string_type, input_value=123, input_type=int]
+```
+
+That is the whole reason to reach for it — the `TypedDict` version of this graph runs happily with
+an int in a `str` field. Note also `add_node(example_node)` with no name: the function's `__name__`
+becomes the node name, which is why the edge can refer to `"example_node"`.
+
 ---
 
 ## 36. A chatbot graph: the `add_messages` reducer and streaming
@@ -3588,9 +3637,25 @@ graph_builder.invoke({"messages": "Hello what can you help me with"})
 A bare string was passed, and it came back as a `HumanMessage` — `add_messages` coerces strings,
 `("user", "...")` tuples and `{"role", "content"}` dicts into message objects on the way in.
 
-There is no checkpointer, so each `invoke` is a **new conversation** — the graph has the machinery
-for a transcript but nothing keeping it between calls. §33's `checkpointer=InMemorySaver()` plus a
-`thread_id` is the missing piece, and it goes into `graph.compile(checkpointer=...)` here.
+### Memory: `MemorySaver` and a `thread_id`
+
+Compiled as above, each `invoke` is a **new conversation** — the graph has the machinery for a
+transcript but nothing keeping it between calls. A checkpointer is what persists the state, and
+`MemorySaver` is the in-process one:
+
+```python
+from langgraph.checkpoint.memory import MemorySaver
+
+memory = MemorySaver()
+graph_memoryy = graph.compile(checkpointer=memory)
+
+config = {"configurable": {"thread_id": "1"}}
+graph_memoryy.invoke({"messages": "Hello what can you help me with"}, config=config)
+```
+
+This is the same mechanism §33's agent middleware used, one level down: the checkpointer saves the
+state after **every node**, keyed by `thread_id`, so the next `invoke` on that id resumes from it.
+Different `thread_id`, different conversation.
 
 ### Streaming — node by node
 
@@ -3613,9 +3678,761 @@ event; in a multi-node graph it is the execution trace, as it happens.
 For a typing-effect chat UI, `stream_mode="messages"` is the one to use; `"updates"` is for seeing
 what the graph did.
 
+The two state modes side by side, on the same conversation:
+
+```python
+for chunk in graph_memoryy.stream({"messages": "Hi, my name is SHAURYA BANSAL and I like basketball"},
+                                  config=config, stream_mode="updates"):
+    print(chunk)
+# {'superbot': {'messages': AIMessage(content='Hello Shaurya! ...')}}   <- just the update
+
+for chunk in graph_memoryy.stream({"messages": "I also like football"},
+                                  config=config, stream_mode="values"):
+    print(chunk)
+# {'messages': [HumanMessage('Hi, my name is...'), AIMessage(...), HumanMessage('I also like football'), ...]}
+```
+
+`"updates"` gives the delta, `"values"` gives the whole state after each step — and because this
+graph has a checkpointer, `"values"` visibly grows across calls on the same `thread_id`.
+
+### Token streaming: `astream_events`
+
+`stream` never gets below the node. To stream the model's **tokens**, use the async
+`astream_events`, which emits every event happening *inside* the nodes:
+
+```python
+config = {"configurable": {"thread_id": "3"}}
+
+async for event in graph_memoryy.astream_events({"messages": "Hi, my name is SHAURYA BANSAL"},
+                                                config=config, version="v2"):
+    print(event)
+# {'event': 'on_chain_start', 'name': 'LangGraph', 'data': {...}, ...}
+# {'event': 'on_chat_model_stream', 'name': 'ChatGroq', 'data': {'chunk': AIMessageChunk(...)}, ...}
+```
+
+Every event is a dict with the same four keys:
+
+| Key | What it holds |
+| --- | --- |
+| `event` | the event type — `on_chain_start`, `on_chat_model_stream`, `on_chain_end`, … |
+| `name` | what emitted it (`LangGraph`, `ChatGroq`, the node name) |
+| `data` | the payload — for `on_chat_model_stream`, `data["chunk"]` is the token |
+| `metadata` | context, including `langgraph_node` — which node this came from |
+
+Filtering for `event["event"] == "on_chat_model_stream"` is how a typing effect gets built:
+`event["data"]["chunk"].content` is the token. `version="v2"` is required — it selects the event
+schema, and v1 is the old one.
+
 ---
 
-## 37. Gotchas worth remembering
+## 37. Tools in a graph: `ToolNode` and `tools_condition`
+
+> Notebooks: [ChainsLangGraph.ipynb](AgenticAIWorkSpace/Langgraph-basics/ChainsLangGraph.ipynb) ·
+> [chatbotwithmultipletools.ipynb](AgenticAIWorkSpace/Langgraph-basics/chatbotwithmultipletools.ipynb)
+
+§31 ran the tool loop by hand with a Python `for`. This is the same loop as **graph structure** —
+which is what makes it resumable, streamable and inspectable.
+
+### Messages are the state, and they print nicely
+
+```python
+from langchain_core.messages import AIMessage, HumanMessage
+
+messages = [AIMessage(content="Please tell me how can I help", name="LLMModel")]
+messages.append(HumanMessage(content="I want to learn coding", name="Shaurya"))
+
+for message in messages:
+    message.pretty_print()
+# ================================== Ai Message ==================================
+# Name: LLMModel
+#
+# Please tell me how can I help
+```
+
+`pretty_print()` is the debugging tool for the rest of Part 4 — it renders role, name, content and
+any tool calls instead of a wall of `repr`.
+
+The reducer from §36 is an ordinary function, and calling it directly shows exactly what it does:
+
+```python
+from langgraph.graph.message import add_messages
+
+add_messages(initial_messages, ai_message)
+# [AIMessage(..., id='1c9dfe62-...'), HumanMessage(..., id='3b13924a-...'), AIMessage(..., id='295e4179-...')]
+```
+
+It appended, and it **stamped ids** on the way through — those ids are what let a later update
+replace a message instead of adding another.
+
+### A node that calls a tool-bound model
+
+```python
+class State(TypedDict):
+    messages: Annotated[list[AnyMessage], add_messages]
+
+llm_with_tools = llm.bind_tools([add])
+
+def llm_tool(state: State):
+    return {"messages": [llm_with_tools.invoke(state["messages"])]}
+```
+
+Wired `START → llm_tool → END`, the run stops at the request:
+
+```python
+messages = graph.invoke({"messages": "What is 2 plus 2"})
+# Human: What is 2 plus 2
+# Ai:    Tool Calls: add (za5t2s87q) Args: {a: 2, b: 2}
+```
+
+The model asked. Nothing ran. Binding a tool never executes it (§31) — the graph has to.
+
+### `ToolNode` + `tools_condition`
+
+Two prebuilts replace the hand-written loop:
+
+- **`ToolNode(tools)`** — a node that reads the last message's `tool_calls`, runs each tool, and
+  appends the `ToolMessage`s.
+- **`tools_condition`** — a conditional-edge function: if the last message has tool calls it
+  returns `"tools"`, otherwise `END`.
+
+```python
+from langgraph.prebuilt import ToolNode, tools_condition
+
+builder = StateGraph(State)
+builder.add_node("llm_tool", llm_tool)
+builder.add_node("tools", ToolNode(tools))
+
+builder.add_edge(START, "llm_tool")
+builder.add_conditional_edges("llm_tool", tools_condition)
+builder.add_edge("tools", END)
+
+graph_builder = builder.compile()
+```
+
+```python
+graph_builder.invoke({"messages": "What is 4 plus 2"})
+# Human: What is 4 plus 2
+# Ai:    Tool Calls: add Args: {a: 4, b: 2}
+# Tool:  6                          <- and the run ends here
+```
+
+The answer is a raw `ToolMessage` reading `6`, not a sentence — because `tools → END` means the
+model never sees the result. Ask the same graph something with no tool in it and
+`tools_condition` routes straight to `END`, so a plain question still works:
+
+```python
+graph.invoke({"messages": "What is Machine Learning"})
+# Ai: Machine Learning (ML) is a subset of Artificial Intelligence...
+```
+
+Fixing the truncated answer is one edge, and that is §38.
+
+### Prebuilt tools: Arxiv, Wikipedia, Tavily
+
+Tools do not have to be your own functions. `langchain_community` ships wrappers, each configured
+through an API wrapper object:
+
+```python
+from langchain_community.tools import ArxivQueryRun, WikipediaQueryRun
+from langchain_community.utilities import ArxivAPIWrapper, WikipediaAPIWrapper
+from langchain_tavily import TavilySearch
+
+arxiv = ArxivQueryRun(api_wrapper=ArxivAPIWrapper(top_k_results=2, doc_content_chars_max=500))
+wiki  = WikipediaQueryRun(api_wrapper=WikipediaAPIWrapper(top_k_results=2, doc_content_chars_max=500))
+tavily = TavilySearch(max_results=5, topic="general")     # needs TAVILY_API_KEY
+
+tools = [arxiv, wiki, tavily]
+llm_with_tools = llm.bind_tools(tools)
+```
+
+`doc_content_chars_max` matters more than it looks: every character a tool returns lands in the
+transcript and is re-sent on the next turn, so an uncapped search result is a context-window bill.
+
+The graph is unchanged — same `ToolNode`, same `tools_condition` — and the model picks:
+
+```python
+graph_builder.invoke({"messages": HumanMessage(content="What is attention is all you need")})
+# -> answers directly, no tool call
+
+llm_with_tools.invoke([HumanMessage(content="What is the recent AI news")]).tool_calls
+# [{'name': 'tavily_search',
+#   'args': {'query': 'AI news September 2026', 'time_range': 'week', 'topic': 'news', ...}, ...}]
+```
+
+Note it filled in `time_range` and `topic` on its own — arguments the schema offered and the
+prompt never mentioned.
+
+---
+
+## 38. The ReAct loop and agent memory
+
+> Notebook: [reActAgent.ipynb](AgenticAIWorkSpace/Langgraph-basics/reActAgent.ipynb)
+
+**ReAct** is three steps in a cycle:
+
+1. **act** — the model calls a tool
+2. **observe** — the tool's output goes back into the transcript
+3. **reason** — the model reads it and decides: another tool, or an answer
+
+§37's graph did act and observe. The third step is **one edge**:
+
+```python
+graph.add_edge("tools", "tool_calling_llm")      # instead of: add_edge("tools", END)
+```
+
+```
+                 +---------------------------+
+                 v                           |
+START -> tool_calling_llm --tools_condition--+--> tools
+                 |                                 (result appended,
+                 +--> END  (no tool call)           loop back to the model)
+```
+
+That cycle is the entire difference between a tool-calling graph and an agent. `tools_condition`
+is what terminates it: once the model answers in prose instead of calling a tool, the edge goes to
+`END`.
+
+With six tools bound (`arxiv`, `wiki`, `add`, `multiply`, `divide`, `tavily`) one request can now
+chain several:
+
+```python
+graph_builder.invoke({"messages": HumanMessage(
+    content="Provide me the top 10 recent AI news for March 3rd 2025, add 5 plus 5 and then multiply by 10")})
+# Ai:   Tool Calls: tavily_search(...)
+# Tool: <search results>
+# Ai:   Tool Calls: add(a=5, b=5)
+# Tool: 10
+# Ai:   Tool Calls: multiply(a=10, b=10)
+# Tool: 100
+# Ai:   <final answer combining all of it>
+```
+
+Each hop is the loop going round again. Nobody wrote "call search, then add, then multiply" — the
+model sequenced it because each tool result came back to it.
+
+### Memory: the same checkpointer, now load-bearing
+
+Without a checkpointer the agent has no idea what "that" refers to:
+
+```python
+graph_builder.invoke({"messages": HumanMessage(content="what is 5 plus 8")})   # -> 13
+graph_builder.invoke({"messages": HumanMessage(content="Divide that by 5")})
+# "I'm not sure what number you'd like to divide by 5. Could you let me know which value...?"
+```
+
+Compile with `MemorySaver` and pass a `thread_id`, and the follow-up resolves:
+
+```python
+memory = MemorySaver()
+graph_memoryy = graph.compile(checkpointer=memory)
+
+config = {"configurable": {"thread_id": "1"}}
+graph_memoryy.invoke({"messages": [HumanMessage(content="Add 13 and 14")]}, config=config)   # -> 27
+graph_memoryy.invoke({"messages": HumanMessage(content="Divide that by 9")}, config=config)  # -> 3
+```
+
+The second call's transcript starts with the first call's messages — the checkpointer reloaded
+them, and "that" has a referent.
+
+---
+
+## 39. Human-in-the-loop: interrupts and editing state
+
+> Notebook: [Humanintheloop.ipynb](HumanIntheLoop/Humanintheloop.ipynb)
+
+§33 did human-in-the-loop with a middleware on a v1 agent. This is the mechanism underneath, on a
+raw graph — and it does more, because a paused graph is just a checkpoint you can read and rewrite.
+
+Three motivations, from the notebook: **approval** (surface an action before it runs), **debugging**
+(rewind and replay), **editing** (change the state and continue).
+
+### `interrupt_before`
+
+```python
+from langgraph.graph import MessagesState        # prebuilt: {"messages": Annotated[list, add_messages]}
+
+sys_msg = SystemMessage(content="You are a helpful assistant tasked with performing arithmetic on a set of inputs.")
+
+def assistant(state: MessagesState):
+    return {"messages": [llm_with_tools.invoke([sys_msg] + state["messages"])]}
+
+builder = StateGraph(MessagesState)
+builder.add_node("assistant", assistant)
+builder.add_node("tools", ToolNode(tools))
+builder.add_edge(START, "assistant")
+builder.add_conditional_edges("assistant", tools_condition)
+builder.add_edge("tools", "assistant")          # the ReAct loop from §38
+
+graph = builder.compile(interrupt_before=["assistant"], checkpointer=memory)
+```
+
+`MessagesState` is the prebuilt state class — exactly the `messages` + `add_messages` TypedDict
+written out in §36, so it does not have to be redeclared. `interrupt_before=["assistant"]` stops
+the graph **before** that node runs, every time it is about to run. A checkpointer is mandatory:
+the pause *is* a saved checkpoint.
+
+```python
+thread = {"configurable": {"thread_id": "123"}}
+
+for event in graph.stream({"messages": HumanMessage(content="Multiply 2 and 3")}, thread, stream_mode="values"):
+    event["messages"][-1].pretty_print()
+# Human: Multiply 2 and 3        <- and it stops
+```
+
+### Reading the paused state
+
+```python
+state = graph.get_state(thread)
+
+state.next        # ('assistant',)  - what would run next
+state.values      # {'messages': [HumanMessage('Multiply 2 and 3')]}
+state.config      # {'configurable': {'thread_id': '123', 'checkpoint_id': '1f1b65c4-...'}}
+
+graph.get_state_history(thread)     # a generator of every checkpoint, newest first
+```
+
+`state.next` is the handle: empty tuple means finished, a node name means paused before it.
+`get_state_history` is what makes "rewind to an earlier checkpoint and replay" possible.
+
+### Resuming: invoke with `None`
+
+```python
+for event in graph.stream(None, thread, stream_mode="values"):
+    event["messages"][-1].pretty_print()
+# Ai:   Tool Calls: Multiply(a=2, b=3)
+# Tool: 6
+```
+
+Passing `None` as the input means **continue from the checkpoint** rather than starting a new run.
+Any other value would be a fresh message appended to the state.
+
+### Editing the state before continuing
+
+```python
+graph.update_state(thread, {"messages": [HumanMessage(content="No, please multiply 15 and 6")]})
+
+for m in graph.get_state(thread).values["messages"]:
+    m.pretty_print()
+# Human: Multiply 2 and 3
+# Human: No, please multiply 15 and 6
+```
+
+`update_state` writes into the checkpoint as if a node had returned that dict — so it goes through
+the reducer, which means the new message is **appended, not substituted**. Both are in the
+transcript; the model simply follows the more recent instruction:
+
+```python
+for event in graph.stream(None, thread, stream_mode="values"):
+    event["messages"][-1].pretty_print()
+# Ai:   Tool Calls: Multiply(a=15, b=6)
+# Tool: 90
+# Ai:   The product of 15 and 6 is 90.
+```
+
+### Waiting for input at a fixed point: the no-op node
+
+To pause for input at a *specific place* rather than before every model call, add a node that does
+nothing and interrupt before it:
+
+```python
+def human_feedback(state: MessagesState):
+    pass                                     # placeholder - its only job is to be a stopping point
+
+builder.add_node("human_feedback", human_feedback)
+builder.add_edge(START, "human_feedback")
+builder.add_edge("human_feedback", "assistant")
+builder.add_edge("tools", "human_feedback")  # every tool result comes back through the human
+
+graph = builder.compile(interrupt_before=["human_feedback"], checkpointer=memory)
+```
+
+```python
+user_input = input("Tell me how you want to update the state:")
+graph.update_state(thread, {"messages": user_input}, as_node="human_feedback")
+
+for event in graph.stream(None, thread, stream_mode="values"):
+    event["messages"][-1].pretty_print()
+```
+
+`as_node="human_feedback"` is the important argument: it tells the graph to treat the update as
+*that node's output*, so execution continues from that node's outgoing edge. Without it the update
+lands with no position in the graph.
+
+Worth watching in the transcript: typing `add 2 and 5` at the prompt did not cancel the original
+`Multiply 2 and 3` — the graph ran the multiply, came back through `human_feedback`, and then did
+the addition too. Appending an instruction is not the same as replacing one.
+
+---
+
+## 40. Running a graph in LangGraph Studio
+
+> Files: [groq_agent.py](AgenticAIWorkSpace/Langgraph-basics/Debugging/groq_agent.py) ·
+> [langgraph.json](AgenticAIWorkSpace/Langgraph-basics/Debugging/langgraph.json)
+
+Notebooks show a graph's *output*. **LangGraph Studio** shows the graph running — nodes lighting up,
+state at every step, and the ability to edit state and re-run from a checkpoint, which is §39 with
+a UI on it.
+
+It needs two things: a module that exposes a **compiled graph at module level**, and a
+`langgraph.json` pointing at it.
+
+```json
+{
+    "dependencies": ["."],
+    "graphs": {
+        "groq_agent": "./groq_agent.py:agent"
+    },
+    "env": "../.env"
+}
+```
+
+`"./groq_agent.py:agent"` is `path:variable` — `agent` must be the compiled graph, not a function
+that builds one, which is why the script ends with a call:
+
+```python
+def make_alternative_graph():
+    """Make a tool-calling agent"""
+    tool_node = ToolNode([add])
+    model_with_tools = model.bind_tools([add])
+
+    def call_model(state):
+        return {"messages": [model_with_tools.invoke(state["messages"])]}
+
+    def should_continue(state: State):
+        if state["messages"][-1].tool_calls:
+            return "tools"
+        else:
+            return END
+
+    graph_workflow = StateGraph(State)
+    graph_workflow.add_node("agent", call_model)
+    graph_workflow.add_node("tools", tool_node)
+    graph_workflow.add_edge(START, "agent")
+    graph_workflow.add_conditional_edges("agent", should_continue)
+    graph_workflow.add_edge("tools", "agent")
+    return graph_workflow.compile()
+
+agent = make_alternative_graph()          # <- what langgraph.json resolves
+```
+
+`should_continue` here is `tools_condition` written out by hand — the same check on
+`messages[-1].tool_calls`, returning a node name or `END`. Useful to see once; use the prebuilt
+after that.
+
+Run it:
+
+```bash
+pip install "langgraph-cli[inmem]"        # already in requirements.txt
+cd AgenticAIWorkSpace/Langgraph-basics/Debugging
+langgraph dev
+```
+
+The server writes a local `.langgraph_api/` folder holding pickled checkpoints and its operations
+log — scratch state, not source. It is what lets Studio rewind a thread between restarts.
+
+---
+
+# Part 5 — Agent workflow patterns
+
+> Folder: [Workflows/](Workflows/) — one notebook per pattern, all on `groq:openai/gpt-oss-120b`.
+
+Parts 3 and 4 built *agents*: the model decides what happens next. A **workflow** is the opposite
+trade — the path is fixed in code, and the model only fills in the steps. Workflows are
+predictable, cheaper and easier to debug; agents are flexible. These five patterns are the
+standard vocabulary, and each is a shape of graph.
+
+| Pattern | Shape | Use when |
+| --- | --- | --- |
+| Prompt chaining | A → B → C | the task splits into fixed, ordered steps |
+| Parallelization | fan out, then join | the subtasks are independent |
+| Routing | classify, then branch | different inputs need different handling |
+| Orchestrator-workers | plan, fan out dynamically, synthesize | the subtasks are not known in advance |
+| Evaluator-optimizer | generate ⇄ grade | there are clear criteria and iteration helps |
+
+---
+
+## 41. Prompt chaining
+
+> Notebook: [prompt-chaining.ipynb](Workflows/prompt-chaining.ipynb)
+
+Break one hard prompt into a sequence of easy ones, each working on the last one's output. Each
+step gets a smaller, clearer job, and a failure is traceable to a step.
+
+```python
+class State(TypedDict):
+    topic: str
+    story: str
+    improved_story: str
+    final_story: str
+
+def generate_code(state: State):
+    msg = llm.invoke(f"write a one sentence story premise about {state['topic']}")
+    return {"story": msg.content}
+
+def improved_code(state: State):
+    msg = llm.invoke(f"Enhance this story with vivid details: {state['story']}")
+    return {"improved_story": msg.content}
+
+def polish_code(state: State):
+    msg = llm.invoke(f"Add an unexpected twist to {state['improved_story']}")
+    return {"final_story": msg.content}
+```
+
+One key per step is the pattern: each node writes its own slot, so every intermediate result
+survives in the final state and can be inspected.
+
+### A gate between steps
+
+A plain Python check can sit on the edge — no model call needed:
+
+```python
+def check_conflict(state: State):
+    if "?" in state["story"] or "!" in state["story"]:
+        return "Fail"
+    return "Pass"
+
+graph.add_edge(START, "generate story")
+graph.add_conditional_edges("generate story", check_conflict,
+                            {"Pass": "Improved Story", "Fail": "generate story"})
+graph.add_edge("Improved Story", "polished story")
+graph.add_edge("polished story", END)
+```
+
+The third argument maps **what the function returns** to **the node to visit**, so `"Fail"` loops
+back and regenerates. The gate is deterministic; only the generation is not.
+
+> **Watch the wiring.** In the notebook as committed, `improved_code` and `polish_code` both read
+> `state['topic']` rather than `state['story']` / `state['improved_story']`, so all three nodes
+> prompt from the topic and nothing actually chains — three independent stories in three state
+> keys. The snippets above are the corrected version. It is the classic prompt-chaining bug and it
+> fails silently, because the output still looks plausible.
+
+---
+
+## 42. Parallelization
+
+> Notebook: [parrelization.ipynb](Workflows/parrelization.ipynb)
+
+When subtasks do not depend on each other, run them at once. In LangGraph that is not an API — it
+is **graph shape**: several edges out of the same node.
+
+```python
+class State(TypedDict):
+    topic: str
+    characters: str
+    settings: str
+    premises: str
+    story_intro: str
+
+graph.add_edge(START, "character")     # these three
+graph.add_edge(START, "setting")       # run
+graph.add_edge(START, "premise")       # concurrently
+
+graph.add_edge("character", "combine")
+graph.add_edge("setting", "combine")   # combine waits for all three
+graph.add_edge("premise", "combine")
+graph.add_edge("combine", END)
+```
+
+```
+            +--> character --+
+START ------+--> setting ----+--> combine --> END
+            +--> premise ----+
+```
+
+LangGraph runs a **superstep** at a time: every node whose inputs are ready runs together, and the
+next step begins only when all of them finish. So `combine` is guaranteed to see all three keys —
+no join to write, no futures to await.
+
+```python
+def combine_elements(state: State):
+    msg = llm.invoke(
+        f"Write a short story introduction using these elements:\n"
+        f"Characters: {state['characters']}\nSetting: {state['settings']}\nPremise: {state['premises']}"
+    )
+    return {"story_intro": msg.content}
+```
+
+Three model calls in the wall-clock time of the slowest one. The catch is that each branch must
+write to its **own key** — two parallel nodes writing the same key without a reducer is an error
+(gotcha 55).
+
+---
+
+## 43. Routing
+
+> Notebook: [routing.ipynb](Workflows/routing.ipynb)
+
+Classify the input first, then send it down the branch built for it. The classifier is the model,
+constrained by a schema so its answer is a value the graph can switch on — §32's
+`with_structured_output`, doing real work:
+
+```python
+class Route(BaseModel):
+    step: Literal["poem", "story", "joke"] = Field(description="The next step in the routing process")
+
+router = llm.with_structured_output(Route)
+
+class State(TypedDict):
+    input: str
+    decision: str
+    output: str
+
+def llm_call_router(state: State):
+    decision = router.invoke([
+        SystemMessage(content="Route the input to story, joke or poem based on the users request"),
+        HumanMessage(content=state["input"]),
+    ])
+    return {"decision": decision.step}
+```
+
+`Literal` is doing the safety work: the classifier cannot answer anything but those three strings,
+so the routing function has no unknown case to handle.
+
+```python
+def route_decision(state: State):
+    if state["decision"] == "story":
+        return "llm_call_1"
+    elif state["decision"] == "joke":
+        return "llm_call_2"
+    elif state["decision"] == "poem":
+        return "llm_call_3"
+
+router_builder.add_conditional_edges(
+    "llm_call_router", route_decision,
+    {"llm_call_1": "llm_call_1", "llm_call_2": "llm_call_2", "llm_call_3": "llm_call_3"},
+)
+```
+
+Two decisions, deliberately separate: the **model** picks a category, and a **plain function** maps
+categories to nodes. Keeping them apart means the routing logic stays testable without the model.
+
+---
+
+## 44. Orchestrator-workers and the `Send` API
+
+> Notebook: [orchestrator.ipynb](Workflows/orchestrator.ipynb)
+
+Parallelization (§42) needs the branches known when the graph is written. Here a **planner model**
+decides how many workers there are, at runtime — the right shape when the subtasks depend on the
+input, like "one worker per section of a report nobody has planned yet".
+
+```python
+class Section(BaseModel):
+    name: str = Field(description="Name for this section of the report")
+    description: str = Field(description="Brief overview of the main topics and concepts of the section")
+
+class Sections(BaseModel):
+    sections: List[Section] = Field(description="Sections of the report")
+
+planner = llm.with_structured_output(Sections)
+```
+
+### Two states, one shared key
+
+```python
+class State(TypedDict):
+    topic: str
+    sections: list[Section]
+    completed_sections: Annotated[list, operator.add]    # every worker appends here
+    final_report: str
+
+class WorkerState(TypedDict):
+    section: Section
+    completed_sections: Annotated[list, operator.add]
+```
+
+Each worker gets its **own** state — just its section — and writes into the shared
+`completed_sections`. `Annotated[list, operator.add]` is the reducer that makes concurrent writes
+legal: without it, N workers writing one key is a conflict.
+
+### `Send` — building the fan-out at runtime
+
+```python
+from langgraph.types import Send
+
+def assign_workers(state: State):
+    """Assign a worker to each section in the plan"""
+    return [Send("llm_call", {"section": s}) for s in state["sections"]]
+```
+
+A conditional-edge function normally returns node *names*. Returning `Send(node, state)` objects
+instead says: run this node **once per item**, each with its own input. The list length is decided
+by the planner's output, so the graph's width is data.
+
+```python
+orchestrator_worker_builder.add_conditional_edges("orchestrator", assign_workers, ["llm_call"])
+orchestrator_worker_builder.add_edge("llm_call", "synthesizer")
+```
+
+```
+                         +--> llm_call (section 1) --+
+START --> orchestrator --+--> llm_call (section 2) --+--> synthesizer --> END
+   (planner decides n)   +--> llm_call (section n) --+
+```
+
+`synthesizer` then reads `completed_sections` — every worker's output, collected by the reducer —
+and joins it into the final report.
+
+---
+
+## 45. Evaluator-optimizer
+
+> Notebook: [Evaluator-optimizer.ipynb](Workflows/Evaluator-optimizer.ipynb)
+
+One model generates, a second grades it, and the graph loops until the grade passes. Worth it when
+the criteria are explicit and stated feedback measurably improves the next attempt — the same
+reason a human drafts twice.
+
+```python
+class Feedback(BaseModel):
+    grade: Literal["funny", "not funny"] = Field(description="Decide if the joke is funny or not.")
+    feedback: str = Field(description="If the joke is not funny, provide feedback on how to improve it.")
+
+evaluator = llm.with_structured_output(Feedback)
+```
+
+The grade drives the edge; the feedback goes back into the next prompt:
+
+```python
+def llm_call_generator(state: State):
+    if state.get("feedback"):
+        msg = llm.invoke(f"Write a joke about {state['topic']} but take into account the feedback: {state['feedback']}")
+    else:
+        msg = llm.invoke(f"Write a joke about {state['topic']}")
+    return {"joke": msg.content}
+
+def llm_call_evaluator(state: State):
+    grade = evaluator.invoke(f"Grade the joke {state['joke']}")
+    return {"funny_or_not": grade.grade, "feedback": grade.feedback}
+
+def route_joke(state: State):
+    if state["funny_or_not"] == "funny":
+        return "Accepted"
+    return "Rejected + Feedback"
+
+optimizer_builder.add_edge(START, "llm_call_generator")
+optimizer_builder.add_edge("llm_call_generator", "llm_call_evaluator")
+optimizer_builder.add_conditional_edges(
+    "llm_call_evaluator", route_joke,
+    {"Accepted": END, "Rejected + Feedback": "llm_call_generator"},
+)
+```
+
+```
+START --> generator --> evaluator --Accepted--> END
+             ^                |
+             +--- feedback ---+  (Rejected)
+```
+
+`state.get("feedback")` — not `state["feedback"]` — is what makes the first pass work, since
+nothing has written that key yet. And nothing here bounds the loop: if the evaluator never says
+"funny", the graph cycles until LangGraph's recursion limit stops it. A real version counts
+attempts in the state and gives up.
+
+---
+
+## 46. Gotchas worth remembering
 
 Things that actually cost time during this work:
 
@@ -3802,18 +4619,55 @@ Things that actually cost time during this work:
     `AgenticAIWorkSpace/.env` — and the same notebook fails in plain Jupyter with gotcha 27's
     `TypeError`. Call `load_dotenv()` explicitly.
 
+49. **`add_edge("tools", END)` truncates the answer.** The run ends on a raw `ToolMessage` (`6`)
+    because the model never sees the result. `add_edge("tools", <llm node>)` — the loop back — is
+    the entire difference between a tool-calling graph and a ReAct agent.
+
+50. **`tools_condition` expects the conventions.** It reads `state["messages"]` and routes to a node
+    literally named `"tools"`. Rename either and the routing silently stops matching — spell out
+    your own `should_continue` if you need different names.
+
+51. **`interrupt_before` needs a checkpointer.** The pause *is* a saved checkpoint; without
+    `compile(checkpointer=...)` there is nothing to pause into or resume from.
+
+52. **Resume a paused graph with `stream(None, thread)`.** `None` means "continue from the
+    checkpoint". Passing a message instead appends it and starts a fresh turn.
+
+53. **`update_state` appends — it does not replace.** It writes through the reducer, so a new
+    `HumanMessage` joins the transcript rather than overwriting the old instruction, and the model
+    sees both. Pass `as_node="<node>"` to say where execution should resume from.
+
+54. **Parallel branches must not write the same plain key.** Two nodes in one superstep writing one
+    un-reduced key is an `InvalidUpdateError`. Give each branch its own key, or annotate the shared
+    one with a reducer — `Annotated[list, operator.add]`, as the `Send` workers do.
+
+55. **`Send("node", {...})` is how a fan-out gets its width at runtime.** Returning `Send` objects
+    from a conditional edge runs the node once per item with its own state — the dynamic version of
+    §42's fixed parallel edges.
+
+56. **An evaluator-optimizer loop has no built-in stop.** If the grader never returns "Accepted",
+    the graph cycles until LangGraph's recursion limit raises. Count attempts in the state.
+
+57. **A prompt chain that reads the wrong state key fails silently.** In `prompt-chaining.ipynb`
+    every node prompts from `state['topic']` instead of the previous node's output, so the three
+    "chained" steps are three independent generations. The output still looks fine — which is why
+    it is worth checking each node reads the key before it.
+
+58. **Tool output is context you pay for on every later turn.** `doc_content_chars_max` on the
+    Arxiv/Wikipedia wrappers is not cosmetic — an uncapped result stays in the transcript for the
+    rest of the conversation. (And `arxiv` rate-limits: HTTP 429 on repeated queries.)
+
 ---
 
 ## Where to go next
 
-- **Tools inside a graph** — §36's graph calls the model once and stops. Next is `ToolNode`,
-  `tools_condition`, and the edge that cycles back to the model after a tool runs — which is §28's
-  agent, built by hand
-- **Pydantic state** — the one schema type that validates at runtime, closing the gap §35 found
-- **A chatbot that remembers** — §36's graph compiled with a checkpointer and invoked with a
-  `thread_id`, streamed with `stream_mode="messages"`
-- **Multi-tool agents** — several tools, and the model picking between them rather than confirming
-  the only one available
+- **Multi-agent graphs** — a supervisor routing between specialised agents, instead of one agent
+  holding every tool
+- **Subgraphs** — a compiled graph used as a node inside another, so §41-45's patterns can be
+  composed rather than copied
+- **Long-term memory** — a store that outlives a single `thread_id`, so the agent remembers a user
+  across conversations, not just across turns
+- **Deployment** — `langgraph dev` (§40) is the local server; the built graph is what gets deployed
 - **Porting Part 2 to v1** — the RAG chain of §26 rebuilt as an agent with the retriever as a tool
 - **Memory that survives a restart** — a persistent checkpointer (SQLite, Postgres) in place of
   §33's `InMemorySaver`
