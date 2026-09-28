@@ -2,7 +2,7 @@
 
 Everything covered so far, in the order it was learned: **plain Python → advanced Python →
 data libraries → Pydantic → LangChain → RAG → LangChain v1 agents → LangGraph →
-agent workflow patterns**. Every section links to the notebook it came
+agent workflow patterns → self-correcting RAG**. Every section links to the notebook it came
 from, so the notes and the runnable code stay in sync.
 
 ---
@@ -64,8 +64,13 @@ from, so the notes and the runnable code stay in sync.
 44. [Orchestrator-workers and the `Send` API](#44-orchestrator-workers-and-the-send-api)
 45. [Evaluator-optimizer](#45-evaluator-optimizer)
 
+**Part 6 — Advanced RAG**
+46. [Agentic RAG](#46-agentic-rag)
+47. [Corrective RAG (CRAG)](#47-corrective-rag-crag)
+48. [Adaptive RAG](#48-adaptive-rag)
+
 **Reference**
-46. [Gotchas worth remembering](#46-gotchas-worth-remembering)
+49. [Gotchas worth remembering](#49-gotchas-worth-remembering)
 
 ---
 
@@ -4432,7 +4437,354 @@ attempts in the state and gives up.
 
 ---
 
-## 46. Gotchas worth remembering
+# Part 6 — Advanced RAG
+
+> Folder: [RAGS/](RAGS/) — `groq:openai/gpt-oss-120b` for reasoning, Gemini for embeddings, FAISS
+> for the index, Tavily for the web fallback.
+
+§21 and §26 built RAG as a straight line: retrieve, stuff, generate. It works right up until
+retrieval returns the wrong thing — and then it answers confidently from bad context, because
+nothing in the pipeline is allowed to say "no".
+
+These three patterns add that. All use the same lever: a **small structured-output grader** whose
+binary verdict drives a conditional edge.
+
+| Pattern | What it checks | What it does about it |
+| --- | --- | --- |
+| Agentic RAG (§46) | are the retrieved docs relevant? | rewrite the question, ask the agent again |
+| Corrective RAG (§47) | is each doc relevant? | drop the bad ones, fall back to web search |
+| Adaptive RAG (§48) | where should this even go? is the answer grounded? does it answer? | route up front, then regenerate or re-query |
+
+---
+
+## 46. Agentic RAG
+
+> Notebook: [1-AgenticRAG.ipynb](RAGS/1-AgenticRAG.ipynb)
+
+In §26's chain, retrieval always runs. Here the **retriever is a tool** and the agent decides
+whether to use it at all — and which one.
+
+### A retriever as a tool
+
+```python
+from langchain_core.tools import create_retriever_tool
+
+retriever_tool = create_retriever_tool(
+    retriever,
+    "retriever_vector_db_blog",
+    "Search and run information about Langgraph",
+)
+```
+
+That third argument is the tool description — the only thing the model uses to choose. Build a
+second store over different sources and you get a second tool, so the agent routes by topic:
+
+```python
+tools = [retriever_tool, retriever_tool_langchain]     # LangGraph docs | LangChain docs
+```
+
+### The graph
+
+```python
+class AgentState(TypedDict):
+    messages: Annotated[Sequence[BaseMessage], add_messages]
+
+workflow.add_node("agent", agent)                       # model bound to both retriever tools
+workflow.add_node("retrieve", ToolNode(tools))
+workflow.add_node("rewrite", rewrite)                   # re-phrase the question
+workflow.add_node("generate", generate)                 # answer from retrieved docs
+
+workflow.add_edge(START, "agent")
+workflow.add_conditional_edges("agent", tools_condition, {"tools": "retrieve", END: END})
+workflow.add_conditional_edges("retrieve", grade_documents)   # -> "generate" | "rewrite"
+workflow.add_edge("generate", END)
+workflow.add_edge("rewrite", "agent")
+```
+
+```
+START -> agent --no tool call--> END
+           |
+      tool call
+           v
+       retrieve --grade_documents--> generate -> END
+           ^                    |
+           |                 (not relevant)
+           +---- agent <--- rewrite
+```
+
+Two conditional edges carry the whole design. `tools_condition` (§37) decides *whether to
+retrieve*; `grade_documents` decides *whether what came back is usable*:
+
+```python
+def grade_documents(state) -> Literal["generate", "rewrite"]:
+    class grade(BaseModel):
+        """Binary score for relevance check."""
+        binary_score: str = Field(description="Relevance score 'yes' or 'no'")
+
+    llm_with_tool = ChatGroq(model="openai/gpt-oss-120b").with_structured_output(grade)
+    chain = prompt | llm_with_tool
+
+    question = state["messages"][0].content        # the original question
+    docs = state["messages"][-1].content           # the ToolMessage the retriever produced
+
+    return "generate" if chain.invoke({"question": question, "context": docs}).binary_score == "yes" else "rewrite"
+```
+
+The node functions read the transcript by **position** — `messages[0]` is the question,
+`messages[-1]` is whatever the last node appended. Compact, and brittle: any extra message shifts
+it.
+
+### What the runs actually showed
+
+```python
+graph.invoke({"messages": "What is Langgraph?"})
+# ---CALL AGENT---
+# ---CHECK RELEVANCE---
+# ---DECISION: DOCS NOT RELEVANT---
+# ---TRANSFORM QUERY---
+# ---CALL AGENT---
+```
+
+The grader rejected the documents — correctly. `WebBaseLoader` on those LangGraph docs URLs had
+returned **redirect stubs**: every `page_content` was the literal string `Redirecting...`. The
+corpus was empty, so retrieval was noise, and the relevance gate caught what a straight RAG chain
+would have fed to the model anyway. Worth remembering as a debugging story: check `page_content`
+after loading (gotcha 59).
+
+```python
+graph.invoke({"messages": "What is Langchain?"})
+# ---CALL AGENT---        <- and nothing else
+```
+
+Here the agent answered **without retrieving at all** — `tools_condition` saw no tool call and went
+straight to `END`. That is agentic RAG's trade: the model may decide it already knows, and the
+answer is then ungrounded. A pipeline that must cite its sources should not leave that to a
+decision.
+
+---
+
+## 47. Corrective RAG (CRAG)
+
+> Notebook: [CorrectiveRAG.ipynb](RAGS/CorrectiveRAG.ipynb)
+
+Agentic RAG lets the model choose. Corrective RAG does the opposite — a **fixed pipeline** with a
+grading step wired in, and a defined fallback when grading fails: search the web instead.
+
+### The state is a dict of working values, not a transcript
+
+```python
+class GraphState(TypedDict):
+    question: str
+    generation: str
+    web_search: str          # "Yes" / "No" - set by the grader, read by the edge
+    documents: List[str]
+```
+
+No `add_messages` here. Every node takes the state and returns the keys it changed, which is §35's
+plain-state style — easier to follow than digging through `messages[-1]`.
+
+### Grade each document, keep the good ones
+
+```python
+def grade_documents(state):
+    filtered_docs = []
+    web_search = "No"
+    for d in state["documents"]:
+        grade = retrieval_grader.invoke({"question": state["question"], "document": d.page_content})
+        if grade.binary_score == "yes":
+            filtered_docs.append(d)
+        else:
+            web_search = "Yes"          # one bad doc is enough to trigger the fallback
+    return {"documents": filtered_docs, "question": state["question"], "web_search": web_search}
+```
+
+The grader runs **per document**, so bad chunks are dropped rather than the whole retrieval being
+accepted or rejected. One model call per chunk is the cost.
+
+### The correction: rewrite, then search the web
+
+```python
+workflow.add_edge(START, "retrieve")
+workflow.add_edge("retrieve", "grade_documents")
+workflow.add_conditional_edges("grade_documents", decide_to_generate,
+                               {"transform_query": "transform_query", "generate": "generate"})
+workflow.add_edge("transform_query", "web_search_node")
+workflow.add_edge("web_search_node", "generate")
+workflow.add_edge("generate", END)
+```
+
+```
+START -> retrieve -> grade_documents --relevant--> generate -> END
+                            |                         ^
+                       (needs help)                   |
+                            v                         |
+                     transform_query -> web_search ---+
+```
+
+The question is re-written **for web search** before the search runs — a query tuned for vector
+similarity is not the one to type into a search engine:
+
+```python
+system = """You a question re-writer that converts an input question to a better version that is optimized
+     for web search. Look at the input and try to reason about the underlying semantic intent / meaning."""
+```
+
+Web hits are appended to the same `documents` list, so `generate` cannot tell where context came
+from:
+
+```python
+response = web_search_tool.invoke({"query": question})
+web_results = "\n".join([d["content"] for d in response["results"]])
+documents.append(Document(page_content=web_results))
+```
+
+`TavilySearch` returns a **dict**, with the hits under `response["results"]` — not a list of
+Documents. Wrapping them is on you (gotcha 63).
+
+### A real run
+
+```python
+app.invoke({"question": "What are the types of agent memory?"})
+# ---RETRIEVE---
+# ---GRADE: DOCUMENT RELEVANT---
+# ---GRADE: DOCUMENT NOT RELEVANT---
+# ---GRADE: DOCUMENT RELEVANT---
+# ---GRADE: DOCUMENT RELEVANT---
+# ---DECISION: ALL DOCUMENTS ARE NOT RELEVANT TO QUESTION, TRANSFORM QUERY---
+# ---WEB SEARCH---  ---GENERATE---
+```
+
+Three of four documents were relevant, and it still went to the web — because `decide_to_generate`
+branches on the `web_search` flag, which any single "no" sets. The printed message says "ALL
+DOCUMENTS ARE NOT RELEVANT", which is simply not what the code checks (gotcha 62). §48 does it the
+other way: branch on whether the filtered list is *empty*.
+
+---
+
+## 48. Adaptive RAG
+
+> Notebook: [AdaptiveRag.ipynb](RAGS/AdaptiveRag.ipynb)
+
+Adaptive RAG adds the two checks the first two patterns leave out: a **router before retrieval**,
+and **grading of the generated answer**, not just of the documents.
+
+### Route first — is this even in the corpus?
+
+```python
+class RouteQuery(BaseModel):
+    """Route a user query to the most relevant datasource."""
+    datasource: Literal["vectorstore", "web_search"] = Field(
+        ..., description="Given a user question choose to route it to web search or a vectorstore.")
+
+system = """You are an expert at routing a user question to a vectorstore or web search.
+The vectorstore contains documents related to agents, prompt engineering, and adversarial attacks.
+Use the vectorstore for questions on these topics. Otherwise, use web-search."""
+
+question_router = route_prompt | llm.with_structured_output(RouteQuery)
+
+question_router.invoke({"question": "Who won the Cricket world cup 2023"})     # datasource='web_search'
+question_router.invoke({"question": "What are the types of agent memory?"})    # datasource='vectorstore'
+```
+
+This is §43's routing pattern, and the system prompt is doing the real work: it **describes what is
+in the index**, so the router can tell in-corpus questions from out-of-corpus ones. Note the edge
+comes off `START` itself — routing happens before any node runs:
+
+```python
+workflow.add_conditional_edges(START, route_question,
+                               {"web_search": "web_search", "vectorstore": "retrieve"})
+```
+
+### Two more graders, on the answer
+
+```python
+class GradeHallucinations(BaseModel):
+    """Binary score for hallucination present in generation answer."""
+    binary_score: str = Field(description="Answer is grounded in the facts, 'yes' or 'no'")
+
+class GradeAnswer(BaseModel):
+    """Binary score to assess answer addresses question."""
+    binary_score: str = Field(description="Answer addresses the question, 'yes' or 'no'")
+```
+
+They ask different questions, and the difference is the point: **grounded** (did the model make it
+up?) versus **useful** (did it answer what was asked?). An answer can be faithful to the documents
+and still miss the question.
+
+```python
+def grade_generation_v_documents_and_question(state):
+    if hallucination_grader.invoke({"documents": state["documents"],
+                                    "generation": state["generation"]}).binary_score == "yes":
+        if answer_grader.invoke({"question": state["question"],
+                                 "generation": state["generation"]}).binary_score == "yes":
+            return "useful"
+        return "not useful"
+    return "not supported"
+```
+
+### Three outcomes, three edges
+
+```python
+workflow.add_conditional_edges("generate", grade_generation_v_documents_and_question, {
+    "not supported": "generate",        # ungrounded -> just try generating again
+    "useful": END,
+    "not useful": "transform_query",    # answered the wrong thing -> re-query and retrieve again
+})
+workflow.add_edge("transform_query", "retrieve")
+```
+
+```
+            +--> web_search --------------------+
+START --route--+                                v
+            +--> retrieve -> grade_documents -> generate --useful--> END
+                    ^              |               |  ^
+                    |         (none left)   (not supported)
+                    +-- transform_query <---+------+  (not useful)
+```
+
+Two different failures, two different repairs: a hallucination is a *generation* problem, so
+regenerate; an off-target answer is a *retrieval* problem, so re-write the question and retrieve
+again. Note the rewriter here is tuned "for vectorstore retrieval", where §47's was tuned for web
+search — same node, different target.
+
+```python
+app.invoke({"question": "What is machine learning"})
+# ---ROUTE QUESTION---  ---ROUTE QUESTION TO WEB SEARCH---
+# ---WEB SEARCH---  ---GENERATE---
+# ---CHECK HALLUCINATIONS---  ---DECISION: GENERATION IS GROUNDED IN DOCUMENTS---
+# ---GRADE GENERATION vs QUESTION---  ---DECISION: GENERATION ADDRESSES QUESTION---
+```
+
+Out-of-corpus question, routed to the web, answered, checked twice, done — never touching the
+vector store.
+
+### Practical: don't re-embed on every run
+
+Free-tier embedding quotas are small, and this index is rebuilt every time the notebook restarts.
+Two things fix that — persist it, and batch with retries:
+
+```python
+INDEX_PATH = "faiss_index_adaptive_rag"
+
+if os.path.exists(INDEX_PATH):
+    vectorstore = FAISS.load_local(INDEX_PATH, embd, allow_dangerous_deserialization=True)
+else:
+    ...
+    BATCH_SIZE = 10           # Gemini free tier returns 429 RESOURCE_EXHAUSTED on a big burst
+    for i in range(0, len(doc_splits), BATCH_SIZE):
+        batch = doc_splits[i:i + BATCH_SIZE]
+        for attempt in range(5):
+            try:
+                ...           # embed batch, then back off and retry on failure
+```
+
+`allow_dangerous_deserialization=True` is required because the index is unpickled — gotcha 4, still
+true. And the notebook loads env with `load_dotenv(override=True)`: without `override`, a key
+already in the environment wins, so a rotated `.env` value is ignored (gotcha 65).
+
+---
+
+## 49. Gotchas worth remembering
 
 Things that actually cost time during this work:
 
@@ -4657,12 +5009,54 @@ Things that actually cost time during this work:
     Arxiv/Wikipedia wrappers is not cosmetic — an uncapped result stays in the transcript for the
     rest of the conversation. (And `arxiv` rate-limits: HTTP 429 on repeated queries.)
 
+59. **`WebBaseLoader` will happily load a redirect stub.** Every page in `1-AgenticRAG.ipynb`'s
+    LangGraph corpus came back as `page_content='Redirecting...'` — loaded, split, embedded and
+    indexed, all without an error. Print a `page_content` after loading; an empty corpus looks
+    exactly like a working one until the answers are wrong.
+
+60. **Agentic RAG can decide not to retrieve.** Asked "What is Langchain?", the agent answered from
+    its own weights and `tools_condition` routed straight to `END` — no retrieval, no grounding, no
+    citation. If answers must come from the corpus, don't leave retrieval to a decision.
+
+61. **`langchain.hub` is gone in LangChain 1.x.** `hub.pull("rlm/rag-prompt")` and
+    `from langchain_classic import hub` both fail; inline the prompt with
+    `ChatPromptTemplate.from_messages([...])` instead.
+
+62. **Read what the branch actually checks, not what it prints.** CRAG's `decide_to_generate`
+    branches on a `web_search` flag that *any single* irrelevant document sets, while printing
+    "ALL DOCUMENTS ARE NOT RELEVANT". Adaptive RAG's version branches on
+    `if not filtered_documents` — which is what that message describes.
+
+63. **`TavilySearch` returns a dict, not Documents.** The hits are `response["results"]`, each with
+    a `["content"]` string. Join them and wrap in `Document(page_content=...)` before appending to
+    a retrieved-docs list.
+
+64. **Gemini's free embedding tier rate-limits hard.** Embedding a few dozen chunks in one burst
+    returns `429 RESOURCE_EXHAUSTED`. Batch (~10 chunks), retry with backoff, and
+    `FAISS.save_local` / `load_local` the index so a kernel restart does not re-embed the corpus.
+
+65. **`load_dotenv()` does not overwrite an existing env var.** Rotate a key in `.env`, re-run, and
+    the stale value in the environment still wins. `load_dotenv(override=True)` forces the file.
+
+66. **`{context}` wants a string, not a list of Documents.** Both RAG notebooks define
+    `format_docs(docs)` and then call `rag_chain.invoke({"context": documents, ...})` with the raw
+    list — so the prompt receives the Python repr, metadata and all. It still answers, which is why
+    the bug survives; pass `format_docs(documents)`.
+
+67. **`"not supported" -> "generate"` is a self-loop with no counter.** A model that keeps
+    hallucinating regenerates until the recursion limit fires. Same shape as gotcha 56 — bound it
+    with an attempt count in the state.
+
 ---
 
 ## Where to go next
 
 - **Multi-agent graphs** — a supervisor routing between specialised agents, instead of one agent
   holding every tool
+- **Self-RAG** — the grading of §48 pushed further: the model emitting retrieval and critique
+  tokens as part of generation, rather than separate grader calls
+- **Retrieval that deserves the graders** — the corpus in §46 was redirect stubs; better loaders,
+  chunking and re-ranking fix more than any amount of post-hoc grading
 - **Subgraphs** — a compiled graph used as a node inside another, so §41-45's patterns can be
   composed rather than copied
 - **Long-term memory** — a store that outlives a single `thread_id`, so the agent remembers a user

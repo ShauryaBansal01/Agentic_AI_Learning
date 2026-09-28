@@ -1,6 +1,6 @@
 # Agentic AI Learning
 
-Learning repo covering **Python fundamentals → advanced Python → data libraries → LangChain / RAG → LangChain v1 agents → LangGraph → agent workflow patterns**.
+Learning repo covering **Python fundamentals → advanced Python → data libraries → LangChain / RAG → LangChain v1 agents → LangGraph → agent workflow patterns → self-correcting RAG**.
 
 📓 **[NOTES.md](NOTES.md)** — the full write-up of everything covered so far, with code snippets.
 
@@ -81,12 +81,20 @@ Agentic_AI_Learning/
 ├── HumanIntheLoop/                 ── interrupts, get_state, update_state, resuming
 │   └── Humanintheloop.ipynb
 │
-└── Workflows/                      ── Part 5: agent workflow patterns
-    ├── prompt-chaining.ipynb       fixed sequence, one state key per step, a gate on the edge
-    ├── parrelization.ipynb         fan out from START, join in one node
-    ├── routing.ipynb               structured-output classifier picks the branch
-    ├── orchestrator.ipynb          planner + Send() workers + synthesizer
-    └── Evaluator-optimizer.ipynb   generate/grade loop until the grade passes
+├── Workflows/                      ── Part 5: agent workflow patterns
+│   ├── prompt-chaining.ipynb       fixed sequence, one state key per step, a gate on the edge
+│   ├── parrelization.ipynb         fan out from START, join in one node
+│   ├── routing.ipynb               structured-output classifier picks the branch
+│   ├── orchestrator.ipynb          planner + Send() workers + synthesizer
+│   └── Evaluator-optimizer.ipynb   generate/grade loop until the grade passes
+│
+└── RAGS/                           ── Part 6: advanced / self-correcting RAG
+    ├── 1-AgenticRAG.ipynb          retrievers as tools; the agent picks one, or none
+    ├── CorrectiveRAG.ipynb         grade each doc, fall back to web search
+    ├── AdaptiveRag.ipynb           route first, then grade the answer for grounding + usefulness
+    ├── fix_notebook.py             one-off script that patched v1 import breaks in the notebooks
+    ├── faiss_index_adaptive_rag/   saved FAISS index (regenerable; see note below)
+    └── *.pdf                       course slides for the RAG sections
 ```
 
 Notebooks in Parts 1 and 2 are numbered in the order they should be read. Parts 3-5 are not:
@@ -98,6 +106,8 @@ Notebooks in Parts 1 and 2 are numbered in the order they should be read. Parts 
   `HumanIntheLoop/`
 - **Part 5** — `prompt-chaining` → `parrelization` → `routing` → `orchestrator` →
   `Evaluator-optimizer` (independent of each other; read in any order)
+- **Part 6** — `1-AgenticRAG` → `CorrectiveRAG` → `AdaptiveRag` (each adds a grader to the one
+  before, so this order matters)
 
 ---
 
@@ -135,10 +145,10 @@ self-contained, not differently configured. What each key unlocks:
 
 | Key | Used by |
 | --- | --- |
-| `GROQ_API_KEY` | `07-LCEL/`, `chat-bot/`, `vectorrectriver/`, `apps/langserver.py`, `Langchainupdated/`, `AgenticAIWorkSpace/` — hosted `ChatGroq` models |
-| `GEMINI_API_KEY` | `01-getting-started/`, `Langchainupdated/` — Gemini chat models |
+| `GROQ_API_KEY` | `07-LCEL/`, `chat-bot/`, `vectorrectriver/`, `apps/langserver.py`, `Langchainupdated/`, `AgenticAIWorkSpace/`, `RAGS/` — hosted `ChatGroq` models |
+| `GEMINI_API_KEY` | `01-getting-started/`, `Langchainupdated/` — Gemini chat models; `RAGS/` — `gemini-embedding-001` |
 | `HF_TOKEN` | `04-embeddings/`, `vectorrectriver/` — HuggingFace models |
-| `TAVILY_API_KEY` | `chatbotwithmultipletools`, `reActAgent` — `TavilySearch` web search tool |
+| `TAVILY_API_KEY` | `chatbotwithmultipletools`, `reActAgent`, `RAGS/` — `TavilySearch` web search tool |
 | `LANGSMITH_*` / `LANGCHAIN_API_KEY` | tracing; optional, everything runs without it |
 
 Ollama needs no key — it runs locally. Arxiv and Wikipedia need no key either; Tavily does
@@ -235,3 +245,11 @@ pickled checkpoints — scratch state, safe to delete.
   wrapper take `doc_content_chars_max` — cap it, since every returned character stays in the
   transcript.
 - `.langgraph_api/` (LangGraph Studio's local checkpoint pickles) is generated state, not source.
+- `RAGS/faiss_index_adaptive_rag/` is a **saved** index, on purpose: Gemini's free embedding tier
+  returns `429 RESOURCE_EXHAUSTED` on a burst, so `AdaptiveRag.ipynb` embeds in batches of 10 and
+  reloads the index on later runs instead of rebuilding it. Delete the folder to force a rebuild.
+- `langchain.hub` was removed in LangChain 1.x — the RAG notebooks inline what `hub.pull(
+  "rlm/rag-prompt")` used to fetch. `RAGS/fix_notebook.py` is the one-off script that patched that
+  import; it is history, not a dependency.
+- Neither `RAGS/faiss_index_adaptive_rag/` nor the `RAGS/*.pdf` slides are covered by `.gitignore`
+  yet — the PDFs are ~4 MB together.
